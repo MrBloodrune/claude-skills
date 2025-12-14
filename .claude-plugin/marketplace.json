@@ -20,8 +20,8 @@
       ]
     },
     {
-      "name": "media-tools",
-      "description": "Media processing tools for images, video, and audio conversion",
+      "name": "ascii-image-converter",
+      "description": "Convert images to ASCII or braille art using the ascii-image-converter CLI tool",
       "source": "./",
       "strict": false,
       "skills": [
