@@ -11,12 +11,20 @@
   },
   "plugins": [
     {
-      "name": "bloodrune-tools",
-      "description": "Bloodrune tools collection: HTML utilities, ASCII art converter, and more",
+      "name": "web-tools",
+      "description": "Web development tools including HTML utilities following Simon Willison's single-file pattern",
       "source": "./",
       "strict": false,
       "skills": [
-        "./skills/html-tools",
+        "./skills/html-tools"
+      ]
+    },
+    {
+      "name": "media-tools",
+      "description": "Media processing tools for images, video, and audio conversion",
+      "source": "./",
+      "strict": false,
+      "skills": [
         "./skills/ascii-image-converter"
       ]
     }
