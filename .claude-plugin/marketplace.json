@@ -1,0 +1,22 @@
+{
+  "name": "netscry-skills",
+  "owner": {
+    "name": "MrBloodrune",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Netscry Claude Code skills",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "netscry-skills",
+      "description": "HTML tools and utilities for tools.netscry.dev following Simon Willison's single-file pattern",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/html-tools"
+      ]
+    }
+  ]
+}
