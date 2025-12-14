@@ -1,21 +1,31 @@
 {
-  "name": "netscry-skills",
+  "name": "bloodrune-skills-marketplace",
   "owner": {
     "name": "MrBloodrune",
     "email": ""
   },
   "metadata": {
-    "description": "Netscry Claude Code skills",
-    "version": "1.0.0"
+    "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
+    "version": "1.0.0",
+    "repository": "https://github.com/MrBloodrune/claude-skills"
   },
   "plugins": [
     {
-      "name": "netscry-skills",
-      "description": "HTML tools and utilities for tools.netscry.dev following Simon Willison's single-file pattern",
+      "name": "web-tools",
+      "description": "Web development tools including HTML utilities following Simon Willison's single-file pattern",
       "source": "./",
       "strict": false,
       "skills": [
         "./skills/html-tools"
+      ]
+    },
+    {
+      "name": "media-tools",
+      "description": "Media processing tools for images, video, and audio conversion",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/ascii-image-converter"
       ]
     }
   ]
