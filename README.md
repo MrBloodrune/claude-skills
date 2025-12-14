@@ -4,88 +4,52 @@ A curated collection of Claude Code skills for development, media processing, an
 
 ## Quick Start
 
-### Install via Claude Code Plugin (Recommended)
-
 ```bash
 # Add the marketplace
 /plugin marketplace add MrBloodrune/claude-skills
 
-# Browse and install skills
+# Browse and install plugins
 /plugin install web-tools@bloodrune-skills-marketplace
 /plugin install media-tools@bloodrune-skills-marketplace
 ```
 
-### Install via CLI
+## Available Plugins
 
-```bash
-# Clone the repository
-git clone git@github.com:MrBloodrune/claude-skills.git
-cd claude-skills
+### web-tools
 
-# List available skills
-./marketplace/install.sh list
-
-# Get info about a skill
-./marketplace/install.sh info ascii-image-converter
-
-# Install a skill
-./marketplace/install.sh install html-tools
-```
-
-## Available Skills
-
-### Web Tools
+Web development tools including HTML utilities following Simon Willison's single-file pattern.
 
 | Skill | Description |
 |-------|-------------|
-| **html-tools** | Create single-file HTML tools following Simon Willison's pattern for browser-based utilities, converters, and generators |
+| **html-tools** | Create single-file HTML tools for browser-based utilities, converters, and generators |
 
-### Media Tools
+### media-tools
+
+Media processing tools for images, video, and audio conversion.
 
 | Skill | Description |
 |-------|-------------|
 | **ascii-image-converter** | Convert images to ASCII or braille art using the `ascii-image-converter` CLI tool |
 
-## Skill Categories
+## Repository Structure
 
-- **web-tools** - Web development and HTML utility tools
-- **media-tools** - Image, video, and audio processing tools
-- **development** - Software development and coding tools
-- **productivity** - Workflow and productivity enhancement tools
-
-## Using the Marketplace CLI
-
-```bash
-# Show help
-./marketplace/install.sh help
-
-# List all skills
-./marketplace/install.sh list
-
-# Search for skills
-./marketplace/install.sh search ascii
-
-# List skills by category
-./marketplace/install.sh category media-tools
-
-# Show detailed skill info
-./marketplace/install.sh info html-tools
-
-# Install a skill (shows installation options)
-./marketplace/install.sh install ascii-image-converter
 ```
-
-## Manual Installation
-
-Copy skills directly to your Claude Code configuration:
-
-```bash
-# Copy a skill to your project
-mkdir -p .claude/skills
-cp -r skills/html-tools .claude/skills/
-
-# Or symlink for development
-ln -s "$(pwd)/skills/html-tools" .claude/skills/html-tools
+claude-skills/
+├── .claude-plugin/
+│   └── marketplace.json        # Claude Code plugin configuration
+├── plugins/
+│   ├── web-tools/
+│   │   └── skills/
+│   │       └── html-tools/
+│   │           ├── SKILL.md
+│   │           ├── assets/
+│   │           └── references/
+│   └── media-tools/
+│       └── skills/
+│           └── ascii-image-converter/
+│               ├── SKILL.md
+│               └── references/
+└── README.md
 ```
 
 ## Creating Your Own Skills
@@ -93,11 +57,13 @@ ln -s "$(pwd)/skills/html-tools" .claude/skills/html-tools
 ### Skill Structure
 
 ```
-skills/
-└── my-skill/
-    ├── SKILL.md           # Required: Main skill file
-    ├── assets/            # Optional: Templates, images, etc.
-    └── references/        # Optional: Reference documentation
+plugins/
+└── my-plugin/
+    └── skills/
+        └── my-skill/
+            ├── SKILL.md           # Required: Main skill file
+            ├── assets/            # Optional: Templates, images, etc.
+            └── references/        # Optional: Reference documentation
 ```
 
 ### SKILL.md Template
@@ -123,52 +89,26 @@ Instructions for how to use the skill.
 Provide concrete examples.
 ```
 
-### Adding to the Catalog
+### Adding a New Plugin
 
-1. Create your skill directory under `skills/`
-2. Add the skill to `marketplace/catalog.json`:
+1. Create a new plugin directory under `plugins/`
+2. Add `skills/` subdirectory with your skill folders
+3. Add the plugin to `.claude-plugin/marketplace.json`:
 
 ```json
 {
-  "id": "my-skill",
-  "name": "My Skill",
-  "description": "What it does",
-  "category": "development",
-  "version": "1.0.0",
-  "author": "YourName",
-  "path": "skills/my-skill",
-  "tags": ["tag1", "tag2"],
-  "requires": []
+  "name": "my-plugin",
+  "description": "Description of the plugin",
+  "source": "./plugins/my-plugin",
+  "strict": false
 }
-```
-
-3. Add the skill to the appropriate plugin in `.claude-plugin/marketplace.json`
-
-## Repository Structure
-
-```
-claude-skills/
-├── .claude-plugin/
-│   └── marketplace.json     # Claude Code plugin configuration
-├── marketplace/
-│   ├── catalog.json         # Skill catalog with metadata
-│   └── install.sh           # CLI installer script
-├── skills/
-│   ├── html-tools/          # Web development tools
-│   │   ├── SKILL.md
-│   │   ├── assets/
-│   │   └── references/
-│   └── ascii-image-converter/  # Image to ASCII converter
-│       ├── SKILL.md
-│       └── references/
-└── README.md
 ```
 
 ## Contributing
 
 1. Fork the repository
-2. Create your skill following the structure above
-3. Add it to the catalog
+2. Create your plugin following the structure above
+3. Add it to the marketplace.json
 4. Submit a pull request
 
 ## License
