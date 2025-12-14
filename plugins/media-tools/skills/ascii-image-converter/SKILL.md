@@ -81,11 +81,13 @@ curl -s https://example.com/image.png | ascii-image-converter -
 
 ## Saving Output
 
+**Important**: The `-s`, `--save-gif`, and `--save-txt` flags expect a **directory path**, not a filename. The tool auto-generates the output filename as `<input-name>-ascii-art.<ext>`.
+
 | Flag | Description |
 |------|-------------|
-| `-s, --save-img [path]` | Save as PNG image |
-| `--save-txt [path]` | Save as text file |
-| `--save-gif [path]` | Save GIF as animated ASCII GIF |
+| `-s, --save-img [dir]` | Save as PNG to directory (outputs `<name>-ascii-art.png`) |
+| `--save-txt [dir]` | Save as text file to directory (outputs `<name>-ascii-art.txt`) |
+| `--save-gif [dir]` | Save GIF as animated ASCII GIF to directory (outputs `<name>-ascii-art.gif`) |
 | `--save-bg [R,G,B,A]` | Background color for saved images (default: black) |
 | `--font [path]` | TTF font for saved images |
 | `--font-color [R,G,B]` | Text color for saved images |
@@ -105,7 +107,8 @@ ascii-image-converter -b --dither -W 80 image.png
 
 ### Save as PNG with custom font
 ```bash
-ascii-image-converter -C -c image.png -s output.png --font /path/to/font.ttf
+ascii-image-converter -C -c image.png -s . --font /path/to/font.ttf
+# Outputs: image-ascii-art.png in current directory
 ```
 
 ### White text on black background (for dark terminals)
@@ -115,12 +118,14 @@ ascii-image-converter -n image.png
 
 ### Save braille art as text file
 ```bash
-ascii-image-converter -b --dither image.png --save-txt art.txt --only-save
+ascii-image-converter -b --dither image.png --save-txt . --only-save
+# Outputs: image-ascii-art.txt in current directory
 ```
 
 ### Animated GIF to ASCII GIF
 ```bash
-ascii-image-converter -C animation.gif --save-gif output.gif
+ascii-image-converter -C animation.gif --save-gif .
+# Outputs: animation-ascii-art.gif in current directory
 ```
 
 ### Custom character map (simple to complex)

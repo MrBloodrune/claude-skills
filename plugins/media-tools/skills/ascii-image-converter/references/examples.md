@@ -10,8 +10,8 @@ ascii-image-converter -C -c -W 60 profile.jpg
 
 ### Logo for README
 ```bash
-# Generate ASCII logo for a text file
-ascii-image-converter -c logo.png --save-txt logo.txt --only-save
+# Generate ASCII logo for a text file (outputs logo-ascii-art.txt)
+ascii-image-converter -c logo.png --save-txt . --only-save
 ```
 
 ### Discord/Slack Avatar
@@ -28,22 +28,22 @@ ascii-image-converter -b --dither -C -W 100 photo.jpg
 
 ### Create ASCII Art Image
 ```bash
-# Save colored ASCII as shareable PNG
-ascii-image-converter -C -c image.png -s ascii_art.png --save-bg 0,0,0,255
+# Save colored ASCII as shareable PNG (outputs image-ascii-art.png)
+ascii-image-converter -C -c image.png -s . --save-bg 0,0,0,255
 ```
 
 ### Batch Processing
 ```bash
-# Convert all PNGs in directory
+# Convert all PNGs in directory (outputs <name>-ascii-art.txt for each)
 for f in *.png; do
-    ascii-image-converter -C -c -W 80 "$f" --save-txt "${f%.png}.txt" --only-save
+    ascii-image-converter -C -c -W 80 "$f" --save-txt . --only-save
 done
 ```
 
 ### Animated GIF Processing
 ```bash
-# Convert animated GIF to ASCII animation
-ascii-image-converter -C animation.gif --save-gif ascii_animation.gif
+# Convert animated GIF to ASCII animation (outputs animation-ascii-art.gif)
+ascii-image-converter -C animation.gif --save-gif .
 ```
 
 ## Character Map Examples
