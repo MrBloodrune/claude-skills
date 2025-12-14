@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated": "2024-12-13",
+  "updated": "2025-12-13",
   "categories": {
     "web-tools": {
       "name": "Web Tools",
@@ -11,16 +11,6 @@
       "name": "Media Tools",
       "description": "Image, video, and audio processing tools",
       "icon": "🎨"
-    },
-    "development": {
-      "name": "Development",
-      "description": "Software development and coding tools",
-      "icon": "💻"
-    },
-    "productivity": {
-      "name": "Productivity",
-      "description": "Workflow and productivity enhancement tools",
-      "icon": "⚡"
     }
   },
   "skills": [
