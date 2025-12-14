@@ -5,7 +5,7 @@ description: Create single-file HTML tools following Simon Willison's pattern. U
 
 # HTML Tools
 
-Create self-contained single-file HTML tools for tools.netscry.dev following Simon Willison's pattern.
+Create self-contained single-file HTML tools for tools.netscry.dev following Simon Willison's single file pattern.
 
 ## Core Principles
 
