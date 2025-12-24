@@ -20,6 +20,12 @@
       "description": "Media processing tools for images, video, and audio conversion",
       "source": "./plugins/media-tools",
       "strict": false
+    },
+    {
+      "name": "homelab-admin",
+      "description": "Homelab infrastructure management skills including audiobook sync (Libation/Audiobookshelf)",
+      "source": "./plugins/homelab-admin",
+      "strict": false
     }
   ]
 }

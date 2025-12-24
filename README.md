@@ -11,6 +11,7 @@ A curated collection of Claude Code skills for development, media processing, an
 # Browse and install plugins
 /plugin install web-tools@bloodrune-skills-marketplace
 /plugin install media-tools@bloodrune-skills-marketplace
+/plugin install homelab-admin@bloodrune-skills-marketplace
 ```
 
 ## Available Plugins
@@ -31,6 +32,14 @@ Media processing tools for images, video, and audio conversion.
 |-------|-------------|
 | **ascii-image-converter** | Convert images to ASCII or braille art using the `ascii-image-converter` CLI tool |
 
+### homelab-admin
+
+Homelab infrastructure management skills for self-hosted services.
+
+| Skill | Description |
+|-------|-------------|
+| **audiobook-sync** | Sync Audible audiobooks to Audiobookshelf using Libation CLI |
+
 ## Repository Structure
 
 ```
@@ -44,10 +53,16 @@ claude-skills/
 │   │           ├── SKILL.md
 │   │           ├── assets/
 │   │           └── references/
-│   └── media-tools/
+│   ├── media-tools/
+│   │   └── skills/
+│   │       └── ascii-image-converter/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   └── homelab-admin/
 │       └── skills/
-│           └── ascii-image-converter/
+│           └── audiobook-sync/
 │               ├── SKILL.md
+│               ├── scripts/
 │               └── references/
 └── README.md
 ```
