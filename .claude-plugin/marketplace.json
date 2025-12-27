@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "1.0.2"
+    "version": "1.1.0"
   },
   "plugins": [
     {
@@ -25,6 +25,12 @@
       "name": "homelab-admin",
       "description": "Homelab infrastructure management skills including audiobook sync (Libation/Audiobookshelf)",
       "source": "./plugins/homelab-admin",
+      "strict": false
+    },
+    {
+      "name": "bits-ui-dev",
+      "description": "Svelte 5 / bits-ui component library development tools with component writing patterns and code review guidance",
+      "source": "./plugins/bits-ui-dev",
       "strict": false
     }
   ]
