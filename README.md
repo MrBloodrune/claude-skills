@@ -12,9 +12,25 @@ A curated collection of Claude Code skills for development, media processing, an
 /plugin install web-tools@bloodrune-skills-marketplace
 /plugin install media-tools@bloodrune-skills-marketplace
 /plugin install homelab-admin@bloodrune-skills-marketplace
+/plugin install bits-ui-dev@bloodrune-skills-marketplace
 ```
 
 ## Available Plugins
+
+### bits-ui-dev
+
+Svelte 5 / bits-ui component library development tools with component writing patterns and code review guidance.
+
+| Skill | Description |
+|-------|-------------|
+| **component-writer** | Create production-quality Svelte 5 components with bits-ui primitives, runes ($state, $derived, $props, $bindable), and Tailwind CSS v4 styling |
+| **code-reviewer** | Review code for pattern compliance, accessibility, TypeScript quality, and performance in bits-ui projects |
+
+**Triggers on:** "create a component", "add a button variant", "implement [x] component", "review this code", "check my component", "code review"
+
+**Reference files include:**
+- Live component examples (button, switch, dialog)
+- Review checklist and common issues quick reference
 
 ### web-tools
 
@@ -47,6 +63,14 @@ claude-skills/
 ├── .claude-plugin/
 │   └── marketplace.json        # Claude Code plugin configuration
 ├── plugins/
+│   ├── bits-ui-dev/
+│   │   └── skills/
+│   │       ├── component-writer/
+│   │       │   ├── SKILL.md
+│   │       │   └── references/
+│   │       └── code-reviewer/
+│   │           ├── SKILL.md
+│   │           └── references/
 │   ├── web-tools/
 │   │   └── skills/
 │   │       └── html-tools/
