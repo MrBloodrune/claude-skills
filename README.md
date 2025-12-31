@@ -50,11 +50,20 @@ Media processing tools for images, video, and audio conversion.
 
 ### homelab-admin
 
-Homelab infrastructure management skills for self-hosted services.
+Proxmox homelab administration including OCI container deployment, NVIDIA GPU passthrough, and audiobook sync workflows.
 
 | Skill | Description |
 |-------|-------------|
+| **proxmox-oci** | Create LXC containers from Docker/OCI images in Proxmox VE 9.1+ using the native OCI-to-LXC feature |
+| **nvidia-gpu-passthrough** | Configure NVIDIA GPU access in Proxmox LXC containers for AI/ML workloads, transcoding, and CUDA applications |
 | **audiobook-sync** | Sync Audible audiobooks to Audiobookshelf using Libation CLI |
+
+**Triggers on:** "pull OCI image", "create OCI container", "docker to LXC", "GPU passthrough Proxmox", "NVIDIA in LXC", "nvidia-smi in container", "run Ollama with GPU", "sync audiobooks"
+
+**Reference files include:**
+- PVE 9.1 OCI known issues and workarounds
+- LXC GPU config templates (Ollama, TensorFlow, Jellyfin)
+- NVIDIA driver installation for PVE 8.x/9.x kernels
 
 ## Repository Structure
 
@@ -84,6 +93,12 @@ claude-skills/
 │   │           └── references/
 │   └── homelab-admin/
 │       └── skills/
+│           ├── proxmox-oci/
+│           │   ├── SKILL.md
+│           │   └── references/
+│           ├── nvidia-gpu-passthrough/
+│           │   ├── SKILL.md
+│           │   └── references/
 │           └── audiobook-sync/
 │               ├── SKILL.md
 │               ├── scripts/
