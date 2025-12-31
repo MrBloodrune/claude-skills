@@ -101,10 +101,11 @@ OCI containers need host NVIDIA libraries. The Debian alternatives system requir
 
 ```
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 ```
 
-**Why both?** Debian NVIDIA packages use symlinks through `/etc/alternatives`. Without it, library symlinks break inside the container.
+**Why all three?** Debian NVIDIA packages use symlinks through `/etc/alternatives` that ultimately point to libraries in `/usr/lib/x86_64-linux-gnu/nvidia/current/`. All three mounts are required for the full symlink chain to resolve.
 
 ### Optional: nvidia-smi Access
 
@@ -151,8 +152,13 @@ lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 lxc.mount.entry: /opt/nvidia-container opt/nvidia-container none bind,optional,create=dir
+
+# Environment (required for OCI containers)
+lxc.environment.runtime: HOME=/root
+lxc.environment.runtime: NVIDIA_VISIBLE_DEVICES=all
 ```
 
 ## Verification

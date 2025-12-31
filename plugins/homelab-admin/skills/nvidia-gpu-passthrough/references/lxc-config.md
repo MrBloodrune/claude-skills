@@ -18,10 +18,15 @@ lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,creat
 
 # Library Bind Mounts - Required for CUDA
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 
 # Optional: nvidia-smi access
 lxc.mount.entry: /opt/nvidia-container opt/nvidia-container none bind,optional,create=dir
+
+# Environment (required for OCI containers)
+lxc.environment.runtime: HOME=/root
+lxc.environment.runtime: NVIDIA_VISIBLE_DEVICES=all
 ```
 
 ## Ollama Container (LLM Inference)
@@ -57,8 +62,12 @@ lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 lxc.mount.entry: /opt/nvidia-container opt/nvidia-container none bind,optional,create=dir
+
+# Environment (required - HOME must be set for ollama)
+lxc.environment.runtime: HOME=/root
 ```
 
 ### Wrapper Script for Ollama
@@ -66,9 +75,19 @@ lxc.mount.entry: /opt/nvidia-container opt/nvidia-container none bind,optional,c
 Create `/start.sh` in the container:
 
 ```bash
-#!/bin/sh
-export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
-exec /bin/ollama serve
+#!/bin/bash
+export HOME=/root
+export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/nvidia/current
+
+# Wait for devices to be ready
+sleep 2
+
+# Run ollama in foreground with restart loop
+while true; do
+    /bin/ollama serve 2>&1 | tee -a /var/log/ollama.log
+    echo "Ollama exited, restarting in 5 seconds..."
+    sleep 5
+done
 ```
 
 ## TensorFlow/PyTorch Container (ML Training)
@@ -103,12 +122,18 @@ lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 lxc.mount.entry: /opt/nvidia-container opt/nvidia-container none bind,optional,create=dir
+
+# Environment
+lxc.environment.runtime: HOME=/root
 
 # Data mount for datasets/models
 mp0: /mnt/datasets,mp=/data,backup=0
 ```
+
+**Note**: TensorFlow OCI images require matching CUDA versions. TensorFlow 2.20+ requires CUDA 12.5+. Check `tf.sysconfig.get_build_info()` to verify CUDA compatibility.
 
 ## Jellyfin/Plex (Hardware Transcoding)
 
@@ -135,6 +160,7 @@ lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
 lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu usr/lib/x86_64-linux-gnu none bind,optional,create=dir,ro
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/nvidia usr/lib/x86_64-linux-gnu/nvidia none bind,optional,create=dir,ro
 lxc.mount.entry: /etc/alternatives etc/alternatives none bind,optional,create=dir,ro
 
 # Media library mount
