@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "plugins": [
     {
@@ -23,7 +23,7 @@
     },
     {
       "name": "homelab-admin",
-      "description": "Homelab infrastructure management skills including audiobook sync (Libation/Audiobookshelf)",
+      "description": "Proxmox homelab administration including OCI container deployment, NVIDIA GPU passthrough for LXC, and audiobook sync workflows",
       "source": "./plugins/homelab-admin",
       "strict": false
     },
