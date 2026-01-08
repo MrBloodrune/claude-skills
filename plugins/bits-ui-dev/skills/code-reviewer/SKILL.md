@@ -1,11 +1,11 @@
 ---
 name: Bits-UI Code Reviewer
-description: Use this skill when reviewing code in a Svelte 5 / bits-ui component library. Triggers on requests like "review this code", "check my component", "is this following best practices", "review PR", "code review", "audit this component", or any code quality assessment task for bits-ui projects.
+description: This skill should be used when reviewing code in a Svelte 5 / bits-ui component library. Triggers on requests like "review this code", "check my component", "is this following best practices", "review PR", "code review", "audit this component", "validate my implementation", or any code quality assessment task for bits-ui projects.
 ---
 
-# Bits-UI Code Reviewer Skill
+# Bits-UI Code Reviewer
 
-This skill provides comprehensive code review guidance for Svelte 5 / bits-ui component library code, covering patterns, accessibility, performance, security, and maintainability.
+Provide comprehensive code review for Svelte 5 / bits-ui component library code, covering patterns, accessibility, performance, security, and maintainability.
 
 ## Review Framework
 

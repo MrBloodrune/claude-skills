@@ -1,26 +1,22 @@
 ---
 name: Bits-UI Component Writer
-description: Use this skill when creating new UI components for a Svelte 5 / bits-ui component library. Triggers on requests like "create a component", "add a new button variant", "implement [component] component", "build a dropdown", "make a form input", or any component development task using bits-ui primitives with Tailwind CSS styling.
+description: This skill should be used when creating new UI components for a Svelte 5 / bits-ui component library. Triggers on requests like "create a component", "add a new button variant", "implement [component] component", "build a dropdown", "make a form input", "add a size to component", or any component development task using bits-ui primitives with Tailwind CSS styling.
 ---
 
-# Bits-UI Component Writer Skill
+# Bits-UI Component Writer
 
-This skill provides comprehensive guidance for creating production-quality Svelte 5 components built on bits-ui primitives with Tailwind CSS v4 styling.
+Create production-quality Svelte 5 components using bits-ui primitives with Tailwind CSS v4 styling.
 
-## Core Architecture
-
-### Project Stack
+## Project Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | Svelte | 5.x | Component framework using runes |
-| SvelteKit | 2.x | Application framework |
 | bits-ui | 2.x | Headless component primitives |
 | Tailwind CSS | 4.x | Utility-first styling with @theme tokens |
-| tailwind-merge | 3.x | Smart class merging |
-| clsx | 2.x | Conditional class utilities |
+| tailwind-merge + clsx | 3.x / 2.x | Smart class merging via cn() |
 
-### Directory Structure
+## Directory Structure
 
 ```
 src/lib/components/ui/[component-name]/
@@ -32,17 +28,14 @@ src/lib/components/ui/[component-name]/
 **Key Locations:**
 - Components: `src/lib/components/ui/`
 - Main exports: `src/lib/index.ts`
-- Utilities: `src/lib/utils.ts`
-- Global styles: `src/app.css`
-- Examples: `src/routes/examples/`
+- Utilities: `src/lib/utils.ts` (cn() function)
+- Global styles: `src/app.css` (theme tokens)
 
 ---
 
-## Component Creation Pattern
+## Component Template
 
-### Step 1: Create the Component File
-
-Every component follows this exact structure:
+Every component follows this structure:
 
 ```svelte
 <script lang="ts">
@@ -559,9 +552,26 @@ Before submitting a new component, verify:
 7. **Always use bits-ui primitives** for complex interactions
 8. **Never use export let** - use $props() rune instead
 
-## Reference Files
+## Additional Resources
 
-See the `references/` directory for live component examples:
-- `button-example.svelte` - Simple stateless component pattern
-- `switch-example.svelte` - Stateful component with two-way binding
-- `dialog-example.svelte` - Portal-based overlay component
+### Reference Files
+
+See the `references/` directory for detailed guidance:
+
+- **`advanced-patterns.md`** - Complex patterns including:
+  - Physics-based state management (WheelSelector momentum scrolling)
+  - Orientation-aware components (Carousel horizontal/vertical)
+  - Checkbox with indeterminate state + snippet children
+  - Custom animations (ripple, gradient, staggered)
+  - Mixed export pattern for compound components
+  - Nested size configuration objects
+
+- **`button-example.svelte`** - Simple stateless component pattern
+- **`switch-example.svelte`** - Stateful component with two-way binding
+- **`dialog-example.svelte`** - Portal-based overlay component
+
+### Context7 Documentation
+
+For bits-ui API details and Tailwind CSS v4 features, use Context7 to query:
+- `/huntabyte/bits-ui` - bits-ui component primitives API
+- `/tailwindlabs/tailwindcss` - Tailwind CSS v4 @theme syntax
