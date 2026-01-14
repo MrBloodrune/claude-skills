@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "1.1.1"
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -31,6 +31,12 @@
       "name": "bits-ui-dev",
       "description": "Svelte 5 / bits-ui component library development tools with component writing patterns and code review guidance",
       "source": "./plugins/bits-ui-dev",
+      "strict": false
+    },
+    {
+      "name": "noted-vault-manager",
+      "description": "Obsidian vault automation - processes Daily note captures into structured, linked notes with intelligent categorization, link scraping, and settings sync",
+      "source": "./plugins/noted-vault-manager",
       "strict": false
     }
   ]
