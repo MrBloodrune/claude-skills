@@ -31,6 +31,12 @@ if [[ -z "$PLUGIN_DIR" ]]; then
     PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 fi
 
+# Load secrets from HashiCorp Vault if vault-env is available
+# This fetches COUCHDB_*, CLAUDE_CODE_OAUTH_TOKEN, etc. dynamically
+if [[ -x /usr/local/bin/vault-env ]]; then
+    eval "$(/usr/local/bin/vault-env)" 2>/dev/null || true
+fi
+
 # Logging
 log() {
     local level="$1"

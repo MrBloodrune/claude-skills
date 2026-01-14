@@ -21,7 +21,13 @@
 
 set -euo pipefail
 
-# Configuration with defaults
+# Load secrets from HashiCorp Vault if vault-env is available
+# This fetches COUCHDB_*, CLAUDE_CODE_OAUTH_TOKEN, etc. dynamically
+if [[ -x /usr/local/bin/vault-env ]]; then
+    eval "$(/usr/local/bin/vault-env)" 2>/dev/null || true
+fi
+
+# Configuration with defaults (Vault secrets override these if loaded)
 COUCHDB_URI="${COUCHDB_URI:-}"
 COUCHDB_USER="${COUCHDB_USER:-}"
 COUCHDB_PASSWORD="${COUCHDB_PASSWORD:-}"

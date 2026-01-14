@@ -15,6 +15,7 @@ Obsidian vault automation plugin for Claude Code. Processes raw captures from Da
 ### Skills
 - `process-daily` - Core processing logic for Daily note captures
 - `vault-management` - Obsidian settings, Livesync configuration, DataView patterns
+- `secrets-management` - HashiCorp Vault integration for secure credential storage
 
 ### Commands
 - `/noted:process [date]` - Process captures from Daily note (defaults to today)
@@ -75,9 +76,30 @@ research k3s vs k8s for homelab
 ## Infrastructure
 
 Designed for deployment with:
-- **CouchDB LXC** - Livesync endpoint for vault synchronization
-- **noted-agent LXC** - Claude Code runner with this plugin
+- **CouchDB LXC** (222) - Livesync endpoint for vault synchronization
+- **noted-agent LXC** (223) - Claude Code runner with this plugin
+- **HashiCorp Vault** (206) - Secure credential storage
+- **Caddy** (201) - TLS reverse proxy
 - **Tailscale** - Secure network access
+
+## Secrets Management
+
+Credentials are stored in HashiCorp Vault, not in plaintext:
+
+| Secret Path | Contents |
+|-------------|----------|
+| `secret/noted/couchdb` | CouchDB connection details |
+| `secret/noted/livesync` | E2E encryption passphrase |
+| `secret/noted/claude` | OAuth token for headless mode |
+
+Scripts automatically load secrets via `vault-env` if available:
+
+```bash
+# Secrets loaded from Vault at runtime
+source <(/usr/local/bin/vault-env)
+```
+
+See the `secrets-management` skill for setup details.
 
 ## Installation
 

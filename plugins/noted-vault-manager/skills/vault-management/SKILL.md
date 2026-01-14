@@ -174,6 +174,12 @@ When syncing:
 - Verify plugin sources before syncing
 - Review custom CSS for external references
 
+### HashiCorp Vault Integration
+
+Credentials for CouchDB and Claude Code are stored in HashiCorp Vault, not in plaintext files. The `vault-env` script fetches secrets at runtime.
+
+For Vault setup and secret management, see the **secrets-management** skill.
+
 ## Additional Resources
 
 ### Reference Files
