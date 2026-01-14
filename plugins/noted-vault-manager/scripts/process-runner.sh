@@ -76,12 +76,11 @@ process_daily() {
         exit 0
     fi
 
-    # Run claude with the plugin
+    # Run claude with the plugin (-p enables headless/print mode)
     "$CLAUDE_BIN" \
-        --headless \
+        -p "Using the vault-processor agent, process the daily note for ${date}. The vault is at ${VAULT_PATH}." \
         --plugin-dir "$PLUGIN_DIR" \
-        --print \
-        "Using the vault-processor agent, process the daily note for ${date}. The vault is at ${VAULT_PATH}." \
+        --allowedTools "Read,Write,Edit,Glob,Grep" \
         2>&1 | tee -a "$LOG_DIR/process-$(date +%Y%m%d).log"
 
     log "INFO" "Processing complete"
@@ -98,11 +97,11 @@ scrape_url() {
 
     log "INFO" "Scraping URL: $url"
 
+    # Slash commands not available in headless mode - describe task instead
     "$CLAUDE_BIN" \
-        --headless \
+        -p "Scrape the article at ${url}, extract its content, and save it as a note in the vault at ${VAULT_PATH}. Use the link-scraper script if available, or fetch and parse the content directly." \
         --plugin-dir "$PLUGIN_DIR" \
-        --print \
-        "/noted:scrape $url" \
+        --allowedTools "Read,Write,Edit,Bash,WebFetch" \
         2>&1 | tee -a "$LOG_DIR/scrape-$(date +%Y%m%d).log"
 
     log "INFO" "Scraping complete"
@@ -114,11 +113,11 @@ sync_settings() {
 
     log "INFO" "Syncing settings: $direction"
 
+    # Slash commands not available in headless mode - describe task instead
     "$CLAUDE_BIN" \
-        --headless \
+        -p "Sync Obsidian vault settings. Direction: ${direction}. Vault path: ${VAULT_PATH}. Use the vault-management skill to ${direction} settings between the vault and CouchDB." \
         --plugin-dir "$PLUGIN_DIR" \
-        --print \
-        "/noted:sync $direction" \
+        --allowedTools "Read,Write,Edit,Bash" \
         2>&1 | tee -a "$LOG_DIR/sync-$(date +%Y%m%d).log"
 
     log "INFO" "Sync complete"

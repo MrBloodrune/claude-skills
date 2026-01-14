@@ -140,11 +140,11 @@ trigger_processing() {
 
     LAST_PROCESS_TIME=$(date +%s)
 
-    # Run claude in headless mode with the plugin
-    if "$CLAUDE_BIN" --headless \
-        --plugin noted-vault-manager \
-        --print \
-        "Process the daily note at $doc_id using the vault-processor agent" \
+    # Run claude in headless mode with the plugin (-p enables print/headless mode)
+    if "$CLAUDE_BIN" \
+        -p "Process the daily note at $doc_id using the vault-processor agent. The vault is at ${VAULT_PATH}." \
+        --plugin-dir "${PLUGIN_DIR:-/home/noted/claude-skills/plugins/noted-vault-manager}" \
+        --allowedTools "Read,Write,Edit,Glob,Grep" \
         >> "$LOG_FILE" 2>&1; then
         log "INFO" "Processing completed successfully"
     else
