@@ -38,6 +38,12 @@
       "description": "Obsidian vault automation - processes Daily note captures into structured, linked notes with intelligent categorization, link scraping, and settings sync",
       "source": "./plugins/noted-vault-manager",
       "strict": false
+    },
+    {
+      "name": "design-engineer",
+      "description": "Design engineering for Claude Code. Craft, direction, memory, enforcement. Build interfaces with intention, maintain consistency across sessions, catch drift before it compounds.",
+      "source": "./plugins/design-engineer",
+      "strict": false
     }
   ]
 }
