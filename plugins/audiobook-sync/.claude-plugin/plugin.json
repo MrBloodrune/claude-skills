@@ -1,0 +1,11 @@
+{
+  "name": "audiobook-sync",
+  "version": "1.0.0",
+  "description": "Sync Audible audiobooks to Audiobookshelf using Libation CLI",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["audiobooks", "audible", "audiobookshelf", "libation", "sync"]
+}

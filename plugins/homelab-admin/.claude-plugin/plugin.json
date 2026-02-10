@@ -1,4 +1,0 @@
-{
-  "name": "homelab-admin",
-  "description": "Proxmox homelab administration including OCI container deployment, NVIDIA GPU passthrough for LXC, and audiobook sync workflows"
-}

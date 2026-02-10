@@ -1,0 +1,11 @@
+{
+  "name": "process-daily",
+  "version": "0.1.0",
+  "description": "Process raw captures from Obsidian Daily notes into structured, linked notes with intelligent categorization",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["obsidian", "daily-notes", "pkm", "categorization", "automation"]
+}

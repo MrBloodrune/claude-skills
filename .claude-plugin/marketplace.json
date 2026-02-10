@@ -6,37 +6,73 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "1.2.0"
+    "version": "2.0.0"
   },
   "plugins": [
     {
-      "name": "web-tools",
-      "description": "Web development tools including HTML utilities following Simon Willison's single-file pattern",
-      "source": "./plugins/web-tools",
+      "name": "html-tools",
+      "description": "Create single-file HTML tools for browser-based utilities, converters, and generators following Simon Willison's pattern",
+      "source": "./plugins/html-tools",
       "strict": false
     },
     {
-      "name": "media-tools",
-      "description": "Media processing tools for images, video, and audio conversion",
-      "source": "./plugins/media-tools",
+      "name": "ascii-image-converter",
+      "description": "Convert images to ASCII or braille art using the ascii-image-converter CLI tool",
+      "source": "./plugins/ascii-image-converter",
       "strict": false
     },
     {
-      "name": "homelab-admin",
-      "description": "Proxmox homelab administration including OCI container deployment, NVIDIA GPU passthrough for LXC, and audiobook sync workflows",
-      "source": "./plugins/homelab-admin",
+      "name": "proxmox-oci",
+      "description": "Create LXC containers from Docker/OCI images in Proxmox VE 9.1+ using the native OCI-to-LXC feature",
+      "source": "./plugins/proxmox-oci",
       "strict": false
     },
     {
-      "name": "bits-ui-dev",
-      "description": "Svelte 5 / bits-ui component library development tools with component writing patterns and code review guidance",
-      "source": "./plugins/bits-ui-dev",
+      "name": "nvidia-gpu-passthrough",
+      "description": "Configure NVIDIA GPU access in Proxmox LXC containers for AI/ML workloads, transcoding, and CUDA applications",
+      "source": "./plugins/nvidia-gpu-passthrough",
       "strict": false
     },
     {
-      "name": "noted-vault-manager",
-      "description": "Obsidian vault automation - processes Daily note captures into structured, linked notes with intelligent categorization, link scraping, and settings sync",
-      "source": "./plugins/noted-vault-manager",
+      "name": "livesync-setup",
+      "description": "Set up Obsidian LiveSync with CouchDB and Tailscale for cross-device vault synchronization",
+      "source": "./plugins/livesync-setup",
+      "strict": false
+    },
+    {
+      "name": "audiobook-sync",
+      "description": "Sync Audible audiobooks to Audiobookshelf using Libation CLI",
+      "source": "./plugins/audiobook-sync",
+      "strict": false
+    },
+    {
+      "name": "svelte-component-writer",
+      "description": "Create production-quality Svelte 5 components with bits-ui primitives, runes, and Tailwind CSS v4 styling",
+      "source": "./plugins/svelte-component-writer",
+      "strict": false
+    },
+    {
+      "name": "svelte-code-reviewer",
+      "description": "Review Svelte 5 / bits-ui code for pattern compliance, accessibility, TypeScript quality, and performance",
+      "source": "./plugins/svelte-code-reviewer",
+      "strict": false
+    },
+    {
+      "name": "process-daily",
+      "description": "Process raw captures from Obsidian Daily notes into structured, linked notes with intelligent categorization",
+      "source": "./plugins/process-daily",
+      "strict": false
+    },
+    {
+      "name": "secrets-management",
+      "description": "Manage secrets with HashiCorp Vault AppRole authentication and environment variable injection",
+      "source": "./plugins/secrets-management",
+      "strict": false
+    },
+    {
+      "name": "vault-management",
+      "description": "Manage Obsidian vault configuration, LiveSync settings, and plugin synchronization",
+      "source": "./plugins/vault-management",
       "strict": false
     },
     {

@@ -1,0 +1,11 @@
+{
+  "name": "ascii-image-converter",
+  "version": "1.0.0",
+  "description": "Convert images to ASCII or braille art using the ascii-image-converter CLI tool",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["ascii", "image", "converter", "braille", "art"]
+}

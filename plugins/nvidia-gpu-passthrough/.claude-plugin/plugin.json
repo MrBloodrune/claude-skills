@@ -1,0 +1,11 @@
+{
+  "name": "nvidia-gpu-passthrough",
+  "version": "1.0.0",
+  "description": "Configure NVIDIA GPU access in Proxmox LXC containers for AI/ML workloads, transcoding, and CUDA applications",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["nvidia", "gpu", "proxmox", "lxc", "passthrough", "cuda"]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "svelte-component-writer",
+  "version": "2.0.0",
+  "description": "Create production-quality Svelte 5 components with bits-ui primitives, runes, and Tailwind CSS v4 styling",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "MIT",
+  "keywords": ["svelte", "bits-ui", "tailwind", "component-library", "svelte5", "runes"]
+}

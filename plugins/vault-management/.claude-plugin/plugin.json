@@ -1,0 +1,11 @@
+{
+  "name": "vault-management",
+  "version": "0.1.0",
+  "description": "Manage Obsidian vault configuration, LiveSync settings, and plugin synchronization",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["obsidian", "vault", "livesync", "settings", "sync"]
+}

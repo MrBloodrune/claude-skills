@@ -1,0 +1,11 @@
+{
+  "name": "secrets-management",
+  "version": "0.1.0",
+  "description": "Manage secrets with HashiCorp Vault AppRole authentication and environment variable injection",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["hashicorp-vault", "secrets", "approle", "security"]
+}

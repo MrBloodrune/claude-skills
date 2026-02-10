@@ -1,0 +1,11 @@
+{
+  "name": "livesync-setup",
+  "version": "1.0.0",
+  "description": "Set up Obsidian LiveSync with CouchDB and Tailscale for cross-device vault synchronization",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["obsidian", "livesync", "couchdb", "tailscale", "sync"]
+}

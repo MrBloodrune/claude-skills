@@ -1,0 +1,11 @@
+{
+  "name": "proxmox-oci",
+  "version": "1.0.0",
+  "description": "Create LXC containers from Docker/OCI images in Proxmox VE 9.1+ using the native OCI-to-LXC feature",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["proxmox", "oci", "lxc", "containers", "homelab"]
+}
