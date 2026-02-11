@@ -80,6 +80,36 @@
       "description": "Design engineering for Claude Code. Craft, direction, memory, enforcement. Build interfaces with intention, maintain consistency across sessions, catch drift before it compounds.",
       "source": "./plugins/design-engineer",
       "strict": false
+    },
+    {
+      "name": "git-safety-hooks",
+      "description": "Safety hooks for git operations, auto-formatting, and desktop notifications",
+      "source": "./plugins/git-safety-hooks",
+      "strict": false
+    },
+    {
+      "name": "rust-development",
+      "description": "Rust edition 2024 development patterns, cargo workspace conventions, error handling, and async idioms",
+      "source": "./plugins/rust-development",
+      "strict": false
+    },
+    {
+      "name": "podman-oci",
+      "description": "Rootless Podman container management with Quadlet/systemd integration, pod composition, and Containerfile patterns",
+      "source": "./plugins/podman-oci",
+      "strict": false
+    },
+    {
+      "name": "svelte-playwright",
+      "description": "Playwright E2E testing patterns for Svelte 5 with accessibility-first selectors and visual regression",
+      "source": "./plugins/svelte-playwright",
+      "strict": false
+    },
+    {
+      "name": "homelab-inventory",
+      "description": "Unified homelab topology reference with CT assignments, network layout, GPU allocation, and service dependencies",
+      "source": "./plugins/homelab-inventory",
+      "strict": false
     }
   ]
 }
