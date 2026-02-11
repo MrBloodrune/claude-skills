@@ -1,0 +1,9 @@
+{
+  "name": "rust-development",
+  "version": "1.0.0",
+  "description": "Rust edition 2024 development patterns, cargo workspaces, error handling, async, and testing conventions",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["rust", "cargo", "tokio", "thiserror", "anyhow", "testing"]
+}
