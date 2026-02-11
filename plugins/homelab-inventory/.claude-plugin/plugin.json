@@ -1,0 +1,9 @@
+{
+  "name": "homelab-inventory",
+  "version": "1.0.0",
+  "description": "Unified homelab topology: Proxmox hosts, container assignments, IP layout, GPU allocation, storage, and service map",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["homelab", "proxmox", "inventory", "network", "infrastructure"]
+}
