@@ -48,7 +48,7 @@ html, body {
     "sankey    sidebar"
     "infobar   infobar";
   grid-template-columns: 1fr 360px;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-rows: auto auto 1fr 1fr auto;
   height: 100vh;
   gap: 1px;
   background: var(--border);
@@ -155,8 +155,8 @@ header .status .dot.disconnected {
 
 #timeline-panel { grid-area: timeline; overflow-y: auto; }
 #timeline-panel svg { width: 100%; }
-#sankey-panel { grid-area: sankey; overflow: auto; }
-#sankey-panel svg { width: 100%; height: 100%; }
+#sankey-panel { grid-area: sankey; overflow: hidden; min-height: 0; }
+#sankey-panel svg { display: block; width: 100%; height: 100%; }
 
 .empty-state {
   position: absolute;
@@ -1795,7 +1795,7 @@ function renderSankey() {
   const height = container.clientHeight - headerH;
   const margin = { top: 12, right: 16, bottom: 28, left: 12 };
 
-  svg.attr('viewBox', `0 0 ${width} ${height}`);
+  svg.attr('width', width).attr('height', height);
   svg.selectAll('*').remove();
 
   const agents = [...state.agents.values()];
