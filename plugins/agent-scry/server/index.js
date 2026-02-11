@@ -174,7 +174,8 @@ const server = createServer(async (req, res) => {
     const memPath = join(home, '.claude', 'projects', slug, 'memory', 'MEMORY.md');
     try {
       const content = readFileSync(memPath, 'utf8');
-      return json(res, 200, { content, path: memPath });
+      const lineCount = content.split('\n').length;
+      return json(res, 200, { content, path: memPath, lineCount });
     } catch {
       return json(res, 404, { error: 'MEMORY.md not found', path: memPath });
     }
