@@ -1,0 +1,9 @@
+{
+  "name": "git-safety-hooks",
+  "version": "1.0.0",
+  "description": "Safety hooks for git operations, auto-formatting, and desktop notifications",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["git", "hooks", "safety", "formatting", "notifications"]
+}
