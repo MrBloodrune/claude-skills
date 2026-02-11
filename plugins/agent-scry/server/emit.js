@@ -20,6 +20,7 @@ process.stdin.on('data', chunk => { input += chunk; });
 process.stdin.on('end', () => {
   let payload;
   try { payload = JSON.parse(input); } catch { payload = {}; }
+  appendFileSync(join(BASE_DIR, 'hook-debug.jsonl'), JSON.stringify({ event_type: eventType, raw: payload, ts: Date.now() }) + '\n');
   processEvent(payload);
 });
 
