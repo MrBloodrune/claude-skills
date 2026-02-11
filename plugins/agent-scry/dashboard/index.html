@@ -297,10 +297,13 @@ header .status .dot.disconnected {
 
 /* Timeline styles */
 .timeline-bar { cursor: pointer; }
-.timeline-bar:hover { filter: brightness(1.3); }
-.timeline-bar.dimmed { opacity: 0.3; }
-.connector-line { stroke: var(--text-dim); stroke-dasharray: 3,3; stroke-width: 1; opacity: 0.5; }
-.tool-segment { opacity: 0.8; }
+.timeline-bar:hover { filter: brightness(1.2); }
+.timeline-bar.dimmed { opacity: 0.2; }
+.connector-line { stroke: var(--text-dim); stroke-dasharray: 3,3; stroke-width: 1; opacity: 0.4; }
+.tool-segment { cursor: pointer; stroke: var(--bg); stroke-width: 2; }
+.tool-segment:hover { filter: brightness(1.3) drop-shadow(0 0 3px currentColor); stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
+.tool-segment.dimmed { opacity: 0.12; }
+.tool-label { font-size: 8px; fill: rgba(255,255,255,0.9); pointer-events: none; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
 
 @keyframes dash {
   to { stroke-dashoffset: -20; }
@@ -491,7 +494,10 @@ header .status .dot.disconnected {
   </header>
 
   <div class="panel" id="timeline-panel">
-    <div class="panel-header">Timeline</div>
+    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Timeline</span>
+      <span id="tool-legend" style="display:flex;gap:8px;font-size:9px;font-weight:400;letter-spacing:0"></span>
+    </div>
     <div class="empty-state" id="timeline-empty">Waiting for events...</div>
     <svg id="timeline-svg"></svg>
   </div>
@@ -834,7 +840,7 @@ function renderTimeline() {
     .domain([xMin, xMax + (xMax - xMin) * 0.05])
     .range([margin.left, width - margin.right]);
 
-  const rowH = Math.min(28, (height - margin.top - margin.bottom) / Math.max(visibleAgents.length, 1));
+  const rowH = Math.max(20, Math.min(36, (height - margin.top - margin.bottom) / Math.max(visibleAgents.length, 1)));
   const y = (i) => margin.top + i * rowH;
 
   const g = svg.append('g');
@@ -844,10 +850,17 @@ function renderTimeline() {
     Bash: '#22c55e', 'general-purpose': '#f59e0b',
   };
 
+  const toolColors = {
+    Read: '#60a5fa', Write: '#34d399', Edit: '#fbbf24', Glob: '#818cf8',
+    Grep: '#c084fc', Bash: '#4ade80', Task: '#f97316', NotebookEdit: '#fb923c',
+    WebFetch: '#22d3ee', WebSearch: '#2dd4bf', Skill: '#e879f9',
+  };
+  const defaultToolColor = '#94a3b8';
+
   visibleAgents.forEach((agent, i) => {
     const color = agentColors[agent.label] || '#9ca3af';
-    const barY = y(i) + 4;
-    const barH = rowH - 8;
+    const barY = y(i) + 3;
+    const barH = rowH - 6;
     const startX = x(agent.spawnTime);
     const endX = x(agent.endTime || now);
 
@@ -865,29 +878,37 @@ function renderTimeline() {
       }
     }
 
-    // Agent bar background
+    // Agent bar — subtle track background
+    const isDimmed = state.selectedAgentId && state.selectedAgentId !== agent.id;
     g.append('rect')
-      .attr('class', `timeline-bar ${state.selectedAgentId && state.selectedAgentId !== agent.id ? 'dimmed' : ''}`)
+      .attr('class', `timeline-bar ${isDimmed ? 'dimmed' : ''}`)
       .attr('x', startX).attr('y', barY)
       .attr('width', Math.max(endX - startX, 2)).attr('height', barH)
-      .attr('rx', 3)
-      .attr('fill', color).attr('opacity', 0.3)
+      .attr('rx', 4)
+      .attr('fill', color).attr('opacity', 0.12)
       .on('click', () => selectAgent(agent.id))
       .on('mouseenter', (e) => showTooltip(e, agentTooltipHtml(agent)))
       .on('mouseleave', hideTooltip);
 
-    // Tool call segments within bar
+    // Thin baseline within track
+    g.append('line')
+      .attr('x1', startX).attr('y1', barY + barH / 2)
+      .attr('x2', endX).attr('y2', barY + barH / 2)
+      .attr('stroke', color).attr('stroke-opacity', 0.15).attr('stroke-width', 1);
+
+    // Tool call segments — per-tool-type colors, stroke gaps, labels
     const agentTools = state.toolCalls.filter(t => t.agentId === agent.id);
     agentTools.forEach(tc => {
       const tcStart = x(tc.startTime);
       const tcEnd = x(tc.endTime || now);
-      const tcColor = tc.hasError ? 'var(--red)' : color;
+      const tcW = Math.max(tcEnd - tcStart, 3);
+      const tcColor = tc.hasError ? '#ef4444' : (toolColors[tc.toolName] || defaultToolColor);
       g.append('rect')
-        .attr('class', `tool-segment ${state.selectedAgentId && state.selectedAgentId !== agent.id ? 'dimmed' : ''}`)
-        .attr('x', tcStart).attr('y', barY + 2)
-        .attr('width', Math.max(tcEnd - tcStart, 1)).attr('height', barH - 4)
-        .attr('rx', 2)
-        .attr('fill', tcColor)
+        .attr('class', `tool-segment ${isDimmed ? 'dimmed' : ''}`)
+        .attr('x', tcStart).attr('y', barY + 1)
+        .attr('width', tcW).attr('height', barH - 2)
+        .attr('rx', 3)
+        .attr('fill', tcColor).attr('opacity', tc.hasError ? 0.95 : 0.85)
         .on('mouseenter', (e) => {
           let tip = `<span class="label">${tc.toolName}</span>`;
           if (tc.hasError) tip += ' <span style="color:var(--red)">ERROR</span>';
@@ -897,6 +918,16 @@ function renderTimeline() {
           showTooltip(e, tip);
         })
         .on('mouseleave', hideTooltip);
+
+      // Tool name label for segments wide enough
+      if (tcW > 28) {
+        g.append('text')
+          .attr('class', 'tool-label')
+          .attr('x', tcStart + 4).attr('y', barY + barH / 2 + 1)
+          .attr('dy', '0.3em')
+          .attr('data-tcw', tcW)
+          .text(tc.toolName.slice(0, Math.floor(tcW / 6)));
+      }
     });
 
     // Active agent pulsing end
@@ -931,6 +962,15 @@ function renderTimeline() {
       });
   });
 
+  // Tool legend — show active tool types
+  const usedTools = new Set(state.toolCalls.map(t => t.toolName));
+  const legend = document.getElementById('tool-legend');
+  legend.innerHTML = [...usedTools].slice(0, 8).map(name => {
+    const c = toolColors[name] || defaultToolColor;
+    const short = name.length > 12 ? name.slice(0, 11) + '\u2026' : name;
+    return `<span style="display:flex;align-items:center;gap:3px" title="${name}"><span style="width:8px;height:8px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>${short}</span>`;
+  }).join('');
+
   // X-axis
   const xAxis = d3.axisBottom(x)
     .ticks(6)
@@ -962,7 +1002,15 @@ function renderTimeline() {
         const el = d3.select(this);
         const ox = parseFloat(el.attr('data-ox'));
         const ow = parseFloat(el.attr('data-ow'));
-        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 1));
+        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 3));
+      });
+      g.selectAll('.tool-label').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const ow = parseFloat(el.attr('data-ow'));
+        const newW = newX(ox + ow) - newX(ox);
+        el.attr('x', newX(ox) + 4).attr('visibility', newW > 28 ? 'visible' : 'hidden');
+        el.text(el.attr('data-name').slice(0, Math.floor(newW / 6)));
       });
       g.selectAll('.connector-line').each(function() {
         const el = d3.select(this);
@@ -989,6 +1037,14 @@ function renderTimeline() {
     const el = d3.select(this);
     el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
     el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
+  });
+  g.selectAll('.tool-label').each(function() {
+    const el = d3.select(this);
+    const lx = parseFloat(el.attr('x')) - 4;
+    const tcw = parseFloat(el.attr('data-tcw'));
+    el.attr('data-ox', x.invert(lx));
+    el.attr('data-ow', x.invert(lx + tcw) - x.invert(lx));
+    el.attr('data-name', el.text());
   });
   g.selectAll('.connector-line').each(function() {
     const el = d3.select(this);
