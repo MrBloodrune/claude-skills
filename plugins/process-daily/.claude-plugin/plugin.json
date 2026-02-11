@@ -1,6 +1,6 @@
 {
   "name": "process-daily",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Process raw captures from Obsidian Daily notes into structured, linked notes with intelligent categorization",
   "author": {
     "name": "MrBloodrune"

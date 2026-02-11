@@ -119,6 +119,14 @@ Flag sensitive content and skip processing. Do not expose in logs or output.
 - `.obsidian/` configuration
 - Existing notes (only create new ones)
 
+## Automated Processing
+
+### Agent
+The **daily-processor** agent handles the full workflow autonomously. Trigger it by asking to "process today" or "file my captures".
+
+### Command
+Use `/process-today` to run processing for today's date, or `/process-today 2026-02-10` for a specific date.
+
 ## Additional Resources
 
 ### Reference Files
