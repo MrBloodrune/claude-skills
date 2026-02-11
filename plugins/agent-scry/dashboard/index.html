@@ -34,7 +34,7 @@ html, body {
 
 #app {
   display: grid;
-  grid-template-rows: auto 30fr 45fr 25fr;
+  grid-template-rows: auto auto auto 1fr;
   height: 100vh;
   gap: 1px;
   background: var(--border);
@@ -108,7 +108,9 @@ header .status .dot.disconnected {
   border-bottom: 1px solid var(--border);
 }
 
-#timeline-panel svg { width: 100%; height: 100%; }
+#timeline-panel { overflow-y: auto; max-height: 50vh; }
+#timeline-panel svg { width: 100%; }
+#sankey-panel { overflow: auto; }
 #sankey-panel svg { width: 100%; height: 100%; }
 
 .empty-state {
@@ -158,11 +160,12 @@ header .status .dot.disconnected {
 .tooltip .label { color: var(--accent); font-weight: 600; }
 .tooltip .dim { color: var(--text-dim); }
 
-/* Stats panel */
+/* Stats panel — compact top bar */
 #stats-panel {
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
+  background: var(--card);
 }
 
 .stats-cards {
@@ -175,7 +178,7 @@ header .status .dot.disconnected {
 .stat-card {
   flex: 1;
   background: var(--card);
-  padding: 12px 16px;
+  padding: 8px 14px;
   min-width: 0;
 }
 
@@ -188,7 +191,7 @@ header .status .dot.disconnected {
 }
 
 .stat-card .value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text);
 }
@@ -229,6 +232,7 @@ header .status .dot.disconnected {
   flex: 1;
   overflow: auto;
   background: var(--bg);
+  max-height: 200px;
 }
 
 .agent-table-toggle {
@@ -288,12 +292,14 @@ header .status .dot.disconnected {
 .badge.error { background: rgba(239,68,68,0.2); color: var(--red); }
 
 /* Sankey styles */
-.sankey-link { fill: none; stroke-opacity: 0.4; }
+.sankey-link { fill: none; stroke-opacity: 0.35; transition: stroke-opacity 0.15s; }
 .sankey-link:hover { stroke-opacity: 0.7; }
-.sankey-link.dimmed { stroke-opacity: 0.08; }
-.sankey-node rect { cursor: pointer; }
-.sankey-node text { font-size: 10px; fill: var(--text-dim); }
-.sankey-node:hover rect { stroke: var(--text); stroke-width: 1; }
+.sankey-link.dimmed { stroke-opacity: 0.06; }
+.sankey-node rect { cursor: pointer; transition: opacity 0.15s; }
+.sankey-node text { font-size: 11px; fill: var(--text); font-weight: 500; }
+.sankey-node text.sankey-label-bg { stroke: var(--bg); stroke-width: 4; stroke-linejoin: round; fill: var(--bg); }
+.sankey-node:hover rect { stroke: rgba(255,255,255,0.6); stroke-width: 1.5; }
+.sankey-node:hover text { fill: #fff; }
 
 /* Timeline styles */
 .timeline-bar { cursor: pointer; }
@@ -303,7 +309,7 @@ header .status .dot.disconnected {
 .tool-segment { cursor: pointer; stroke: var(--bg); stroke-width: 2; }
 .tool-segment:hover { filter: brightness(1.3) drop-shadow(0 0 3px currentColor); stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
 .tool-segment.dimmed { opacity: 0.12; }
-.tool-label { font-size: 8px; fill: rgba(255,255,255,0.9); pointer-events: none; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
+.tool-label { font-size: 9px; fill: rgba(255,255,255,0.9); pointer-events: none; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
 
 @keyframes dash {
   to { stroke-dashoffset: -20; }
@@ -493,23 +499,7 @@ header .status .dot.disconnected {
     </div>
   </header>
 
-  <div class="panel" id="timeline-panel">
-    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between">
-      <span>Timeline</span>
-      <span id="tool-legend" style="display:flex;gap:8px;font-size:9px;font-weight:400;letter-spacing:0"></span>
-    </div>
-    <div class="empty-state" id="timeline-empty">Waiting for events...</div>
-    <svg id="timeline-svg"></svg>
-  </div>
-
-  <div class="panel" id="sankey-panel">
-    <div class="panel-header">Sankey Flow</div>
-    <div class="empty-state" id="sankey-empty">Waiting for events...</div>
-    <svg id="sankey-svg"></svg>
-  </div>
-
   <div class="panel" id="stats-panel">
-    <div class="panel-header">Stats</div>
     <div class="stats-cards">
       <div class="stat-card" id="card-tokens">
         <div class="title">Tokens</div>
@@ -558,6 +548,21 @@ header .status .dot.disconnected {
         <tbody id="agent-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="panel" id="timeline-panel">
+    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Timeline</span>
+      <span id="tool-legend" style="display:flex;gap:8px;font-size:9px;font-weight:400;letter-spacing:0"></span>
+    </div>
+    <div class="empty-state" id="timeline-empty">Waiting for events...</div>
+    <svg id="timeline-svg"></svg>
+  </div>
+
+  <div class="panel" id="sankey-panel">
+    <div class="panel-header">Sankey Flow</div>
+    <div class="empty-state" id="sankey-empty">Waiting for events...</div>
+    <svg id="sankey-svg"></svg>
   </div>
 </div>
 
@@ -814,10 +819,9 @@ function renderTimeline() {
 
   const headerH = container.querySelector('.panel-header').offsetHeight;
   const width = container.clientWidth;
-  const height = container.clientHeight - headerH;
+  const containerH = container.clientHeight - headerH;
   const margin = { top: 10, right: 20, bottom: 24, left: 140 };
 
-  svg.attr('viewBox', `0 0 ${width} ${height}`);
   svg.selectAll('*').remove();
 
   const agents = buildAgentTree();
@@ -840,7 +844,11 @@ function renderTimeline() {
     .domain([xMin, xMax + (xMax - xMin) * 0.05])
     .range([margin.left, width - margin.right]);
 
-  const rowH = Math.max(20, Math.min(36, (height - margin.top - margin.bottom) / Math.max(visibleAgents.length, 1)));
+  const rowH = 40;
+  const contentH = margin.top + visibleAgents.length * rowH + margin.bottom;
+  const height = Math.max(contentH, 100);
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+  svg.style('height', `${height}px`);
   const y = (i) => margin.top + i * rowH;
 
   const g = svg.append('g');
@@ -950,7 +958,7 @@ function renderTimeline() {
       .attr('y', barY + barH / 2 + 1)
       .attr('text-anchor', 'end')
       .attr('fill', color)
-      .attr('font-size', '11px')
+      .attr('font-size', '12px')
       .attr('cursor', hasChildren ? 'pointer' : 'default')
       .text(prefix + agent.label + (agent.id !== 'ag_main' ? ' ' + agent.id.slice(-6) : ''))
       .on('click', () => {
@@ -1124,7 +1132,7 @@ function renderSankey() {
   const headerH = container.querySelector('.panel-header').offsetHeight;
   const width = container.clientWidth;
   const height = container.clientHeight - headerH;
-  const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+  const margin = { top: 12, right: 16, bottom: 28, left: 12 };
 
   svg.attr('viewBox', `0 0 ${width} ${height}`);
   svg.selectAll('*').remove();
@@ -1259,11 +1267,13 @@ function renderSankey() {
   if (nodes.length < 2 || sankeyLinks.length === 0) return;
 
   try {
+    const nodeCount = nodes.length;
+    const dynamicPadding = nodeCount > 15 ? 4 : nodeCount > 8 ? 8 : 14;
     const sankeyGen = d3.sankey()
       .nodeId(d => d.index)
       .nodeAlign(d3.sankeyLeft)
-      .nodeWidth(16)
-      .nodePadding(12)
+      .nodeWidth(14)
+      .nodePadding(dynamicPadding)
       .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
 
     const { nodes: sNodes, links: sLinks } = sankeyGen({
@@ -1344,12 +1354,31 @@ function renderSankey() {
         if (d.column === 2) selectAgent(d.id);
       });
 
+    // Text background for contrast (rendered behind the visible text)
     node.append('text')
-      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 6 : -6)
+      .attr('class', 'sankey-label-bg')
+      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
       .attr('y', d => (d.y1 - d.y0) / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
-      .text(d => d.name.slice(0, 30));
+      .text(d => d.name.length > 35 ? d.name.slice(0, 33) + '\u2026' : d.name);
+
+    // Visible label text
+    node.append('text')
+      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
+      .attr('y', d => (d.y1 - d.y0) / 2)
+      .attr('dy', '0.35em')
+      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+      .attr('fill', d => {
+        if (d.column === 0) return 'var(--accent)';
+        if (d.column === 3) {
+          if (d.status === 'error') return 'var(--red)';
+          if (d.status === 'running') return 'var(--accent)';
+          return 'var(--green)';
+        }
+        return 'var(--text)';
+      })
+      .text(d => d.name.length > 35 ? d.name.slice(0, 33) + '\u2026' : d.name);
 
   } catch (e) {
     // Sankey layout can fail with certain edge cases
