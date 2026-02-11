@@ -1,0 +1,9 @@
+{
+  "name": "svelte-playwright",
+  "version": "1.0.0",
+  "description": "Playwright testing patterns for Svelte 5 components: browser automation, accessibility testing, visual regression, and component verification",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "MIT",
+  "keywords": ["playwright", "svelte", "testing", "e2e", "accessibility", "visual-regression"]
+}
