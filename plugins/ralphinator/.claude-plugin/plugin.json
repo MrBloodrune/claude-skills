@@ -1,0 +1,11 @@
+{
+  "name": "ralphinator",
+  "version": "1.0.0",
+  "description": "Guided builder for Ralph Wiggum loop prompts. Interrogates the user, designs phased implementation plans with objective verification, and outputs ready-to-run /ralph-loop prompts.",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["ralph-wiggum", "ralph-loop", "autonomous", "AFK", "loop-prompt", "implementation-plan"]
+}
