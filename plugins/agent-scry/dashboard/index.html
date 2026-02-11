@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Scry — Observatory</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --card: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #4a9eff;
+  --green: #22c55e;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --purple: #a855f7;
+  --main-gray: #9ca3af;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 30fr 45fr 25fr;
+  height: 100vh;
+  gap: 1px;
+  background: var(--border);
+}
+
+header {
+  background: var(--card);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+header h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+header .controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+header .status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+header .status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+header .status .dot.disconnected {
+  background: var(--red);
+}
+
+#session-select {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.panel {
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-header {
+  padding: 8px 16px;
+  background: var(--card);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+#timeline-panel svg { width: 100%; height: 100%; }
+#sankey-panel svg { width: 100%; height: 100%; }
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.reconnect-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--red);
+  color: white;
+  text-align: center;
+  padding: 6px;
+  font-size: 12px;
+  z-index: 1000;
+  display: none;
+}
+
+.tooltip {
+  position: absolute;
+  background: #222;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 300px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.tooltip .label { color: var(--accent); font-weight: 600; }
+.tooltip .dim { color: var(--text-dim); }
+
+/* Stats panel */
+#stats-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.stats-cards {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.stat-card {
+  flex: 1;
+  background: var(--card);
+  padding: 12px 16px;
+  min-width: 0;
+}
+
+.stat-card .title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.stat-card .value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stat-card .secondary {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.stat-card .sparkline {
+  margin-top: 6px;
+  height: 24px;
+}
+
+.stat-card .sparkline path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.agent-table-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.agent-table-toggle {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  user-select: none;
+}
+
+.agent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.agent-table th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  padding: 6px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.agent-table th:hover { color: var(--text); }
+
+.agent-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.agent-table tr:hover { background: #1a1a1a; }
+.agent-table tr.selected { background: #1a2a3a; }
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge.running { background: rgba(74,158,255,0.2); color: var(--accent); }
+.badge.success { background: rgba(34,197,94,0.2); color: var(--green); }
+.badge.error { background: rgba(239,68,68,0.2); color: var(--red); }
+
+/* Sankey styles */
+.sankey-link { fill: none; stroke-opacity: 0.4; }
+.sankey-link:hover { stroke-opacity: 0.7; }
+.sankey-link.dimmed { stroke-opacity: 0.08; }
+.sankey-node rect { cursor: pointer; }
+.sankey-node text { font-size: 10px; fill: var(--text-dim); }
+.sankey-node:hover rect { stroke: var(--text); stroke-width: 1; }
+
+/* Timeline styles */
+.timeline-bar { cursor: pointer; }
+.timeline-bar:hover { filter: brightness(1.3); }
+.timeline-bar.dimmed { opacity: 0.3; }
+.connector-line { stroke: var(--text-dim); stroke-dasharray: 3,3; stroke-width: 1; opacity: 0.5; }
+.tool-segment { opacity: 0.8; }
+
+@keyframes dash {
+  to { stroke-dashoffset: -20; }
+}
+
+.in-progress {
+  stroke-dasharray: 8,4;
+  animation: dash 1s linear infinite;
+}
+</style>
+</head>
+<body>
+<div class="reconnect-banner" id="reconnect-banner">Disconnected — reconnecting...</div>
+<div class="tooltip" id="tooltip" style="display:none"></div>
+
+<div id="app">
+  <header>
+    <h1>AGENT SCRY</h1>
+    <div class="controls">
+      <select id="session-select"><option value="">Current session</option></select>
+      <div class="status">
+        <div class="dot" id="status-dot"></div>
+        <span id="status-text">Connected</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="panel" id="timeline-panel">
+    <div class="panel-header">Timeline</div>
+    <div class="empty-state" id="timeline-empty">Waiting for events...</div>
+    <svg id="timeline-svg"></svg>
+  </div>
+
+  <div class="panel" id="sankey-panel">
+    <div class="panel-header">Sankey Flow</div>
+    <div class="empty-state" id="sankey-empty">Waiting for events...</div>
+    <svg id="sankey-svg"></svg>
+  </div>
+
+  <div class="panel" id="stats-panel">
+    <div class="panel-header">Stats</div>
+    <div class="stats-cards">
+      <div class="stat-card" id="card-tokens">
+        <div class="title">Tokens</div>
+        <div class="value" id="val-tokens">0</div>
+        <div class="secondary" id="sec-tokens">avg 0/agent</div>
+        <div class="sparkline"><svg id="spark-tokens"></svg></div>
+      </div>
+      <div class="stat-card" id="card-cost">
+        <div class="title">Cost</div>
+        <div class="value" id="val-cost">$0.00</div>
+        <div class="secondary" id="sec-cost">avg $0.00/agent</div>
+        <div class="sparkline"><svg id="spark-cost"></svg></div>
+      </div>
+      <div class="stat-card" id="card-agents">
+        <div class="title">Agents</div>
+        <div class="value" id="val-agents">0</div>
+        <div class="secondary" id="sec-agents">0 active · 0 done · 0 failed</div>
+        <div class="sparkline"><svg id="spark-agents"></svg></div>
+      </div>
+      <div class="stat-card" id="card-duration">
+        <div class="title">Duration</div>
+        <div class="value" id="val-duration">0s</div>
+        <div class="secondary" id="sec-duration">est. remaining: —</div>
+      </div>
+      <div class="stat-card" id="card-efficiency">
+        <div class="title">Efficiency</div>
+        <div class="value" id="val-efficiency">—</div>
+        <div class="secondary" id="sec-efficiency">&nbsp;</div>
+        <div class="progress-bar"><div class="fill" id="efficiency-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="agent-table-toggle" id="table-toggle">▸ Agent Table</div>
+    <div class="agent-table-wrap" id="table-wrap" style="display:none">
+      <table class="agent-table" id="agent-table">
+        <thead>
+          <tr>
+            <th data-col="agent">Agent</th>
+            <th data-col="type">Type</th>
+            <th data-col="task">Task</th>
+            <th data-col="tokens">Tokens</th>
+            <th data-col="cost">Cost</th>
+            <th data-col="duration">Duration</th>
+            <th data-col="status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="agent-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  events: [],
+  agents: new Map(),
+  toolCalls: [],
+  selectedAgentId: null,
+  paused: false,
+  sessionStart: null,
+  tokenHistory: [],
+  costHistory: [],
+  agentCountHistory: [],
+  sortCol: 'agent',
+  sortAsc: true,
+  tableVisible: false,
+  timelineCollapsed: new Set(),
+};
+
+// --- Event ingestion ---
+
+function ingestEvent(evt) {
+  state.events.push(evt);
+
+  if (!state.sessionStart) state.sessionStart = evt.timestamp;
+
+  if (evt.event_type === 'session_start') {
+    if (!state.agents.has(evt.agent_id || 'ag_main')) {
+      state.agents.set(evt.agent_id || 'ag_main', {
+        id: evt.agent_id || 'ag_main',
+        parentId: null,
+        label: 'main',
+        task: 'Root session',
+        tags: [],
+        spawnTime: evt.timestamp,
+        endTime: null,
+        tokensIn: 0,
+        tokensOut: 0,
+        durationMs: 0,
+        status: 'running',
+        tools: [],
+        contributesTo: [],
+      });
+    }
+    return;
+  }
+
+  if (evt.event_type === 'agent_spawn' || (evt.event_type === 'tool_start' && evt.spawns_agent_id)) {
+    const agentId = evt.agent_id || evt.spawns_agent_id;
+    if (!state.agents.has(agentId)) {
+      state.agents.set(agentId, {
+        id: agentId,
+        parentId: evt.parent_agent_id || null,
+        label: evt.agent_label || 'unknown',
+        task: evt.task_description || '',
+        tags: evt.task_tags || [],
+        spawnTime: evt.timestamp,
+        endTime: null,
+        tokensIn: 0,
+        tokensOut: 0,
+        durationMs: 0,
+        status: 'running',
+        tools: [],
+        contributesTo: [],
+      });
+    }
+  }
+
+  if (evt.event_type === 'tool_start') {
+    const agentId = evt.agent_id || 'ag_main';
+    if (!state.agents.has(agentId)) {
+      state.agents.set(agentId, {
+        id: agentId, parentId: null, label: evt.agent_label || 'main',
+        task: '', tags: [], spawnTime: evt.timestamp, endTime: null,
+        tokensIn: 0, tokensOut: 0, durationMs: 0, status: 'running',
+        tools: [], contributesTo: [],
+      });
+    }
+    state.toolCalls.push({
+      id: evt.id,
+      agentId,
+      toolName: evt.tool_name,
+      startTime: evt.timestamp,
+      endTime: null,
+      params: evt.tool_params_summary || '',
+    });
+  }
+
+  if (evt.event_type === 'tool_end') {
+    const tc = [...state.toolCalls].reverse().find(
+      t => t.agentId === (evt.agent_id || 'ag_main') && t.toolName === evt.tool_name && !t.endTime
+    );
+    if (tc) {
+      tc.endTime = evt.timestamp;
+      tc.tokensIn = evt.tokens_in || 0;
+      tc.tokensOut = evt.tokens_out || 0;
+    }
+  }
+
+  if (evt.event_type === 'agent_complete') {
+    const agent = state.agents.get(evt.agent_id);
+    if (agent) {
+      agent.endTime = evt.timestamp;
+      agent.tokensIn = evt.tokens_in || 0;
+      agent.tokensOut = evt.tokens_out || 0;
+      agent.durationMs = evt.duration_ms || (evt.timestamp - agent.spawnTime);
+      agent.status = evt.status || 'success';
+      agent.contributesTo = evt.contributes_to || [];
+      agent.tags = evt.task_tags || agent.tags;
+    }
+  }
+
+  updateHistories();
+}
+
+function updateHistories() {
+  const agents = [...state.agents.values()];
+  const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
+  const totalCost = agents.reduce((s, a) => s + (a.tokensIn * 15 / 1_000_000) + (a.tokensOut * 75 / 1_000_000), 0);
+
+  state.tokenHistory.push(totalTokens);
+  if (state.tokenHistory.length > 30) state.tokenHistory.shift();
+
+  state.costHistory.push(totalCost);
+  if (state.costHistory.length > 30) state.costHistory.shift();
+
+  state.agentCountHistory.push(agents.filter(a => a.status === 'running').length);
+  if (state.agentCountHistory.length > 30) state.agentCountHistory.shift();
+}
+
+// --- SSE connection ---
+
+let evtSource = null;
+let reconnectTimer = null;
+
+function connectSSE() {
+  if (evtSource) evtSource.close();
+
+  evtSource = new EventSource('/api/events');
+
+  evtSource.addEventListener('message', (e) => {
+    const evt = JSON.parse(e.data);
+    ingestEvent(evt);
+    if (!state.paused) render();
+  });
+
+  evtSource.onopen = () => {
+    document.getElementById('reconnect-banner').style.display = 'none';
+    document.getElementById('status-dot').classList.remove('disconnected');
+    document.getElementById('status-text').textContent = 'Connected';
+    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+  };
+
+  evtSource.onerror = () => {
+    document.getElementById('reconnect-banner').style.display = 'block';
+    document.getElementById('status-dot').classList.add('disconnected');
+    document.getElementById('status-text').textContent = 'Disconnected';
+    evtSource.close();
+    if (!reconnectTimer) {
+      reconnectTimer = setInterval(connectSSE, 3000);
+    }
+  };
+}
+
+async function loadSession(sessionId) {
+  const url = sessionId ? `/api/session?id=${sessionId}` : '/api/session';
+  const res = await fetch(url);
+  const events = await res.json();
+  state.events = [];
+  state.agents.clear();
+  state.toolCalls = [];
+  state.sessionStart = null;
+  state.tokenHistory = [];
+  state.costHistory = [];
+  state.agentCountHistory = [];
+  events.forEach(e => ingestEvent(e));
+  render();
+}
+
+async function loadSessions() {
+  try {
+    const res = await fetch('/api/sessions');
+    const sessions = await res.json();
+    const sel = document.getElementById('session-select');
+    sel.innerHTML = '<option value="">Current session</option>';
+    sessions.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.id;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+// --- Render orchestration ---
+
+function render() {
+  renderTimeline();
+  renderSankey();
+  renderStats();
+}
+
+// --- Timeline panel ---
+
+function renderTimeline() {
+  const container = document.getElementById('timeline-panel');
+  const svg = d3.select('#timeline-svg');
+  const emptyEl = document.getElementById('timeline-empty');
+
+  if (state.agents.size === 0) {
+    emptyEl.style.display = 'flex';
+    svg.selectAll('*').remove();
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  const headerH = container.querySelector('.panel-header').offsetHeight;
+  const width = container.clientWidth;
+  const height = container.clientHeight - headerH;
+  const margin = { top: 10, right: 20, bottom: 24, left: 140 };
+
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+  svg.selectAll('*').remove();
+
+  const agents = buildAgentTree();
+
+  // Auto-collapse for large swarms (>20 agents)
+  if (agents.length > 20 && state.timelineCollapsed.size === 0) {
+    agents.filter(a => !a.parentId || !state.agents.has(a.parentId)).forEach(a => {
+      const hasChildren = agents.some(c => c.parentId === a.id);
+      if (hasChildren) state.timelineCollapsed.add(a.id);
+    });
+  }
+
+  const visibleAgents = agents.filter(a => isVisible(a.id));
+  const now = Date.now();
+
+  const xMin = d3.min(visibleAgents, a => a.spawnTime) || now - 10000;
+  const xMax = d3.max(visibleAgents, a => a.endTime || now) || now;
+
+  const x = d3.scaleLinear()
+    .domain([xMin, xMax + (xMax - xMin) * 0.05])
+    .range([margin.left, width - margin.right]);
+
+  const rowH = Math.min(28, (height - margin.top - margin.bottom) / Math.max(visibleAgents.length, 1));
+  const y = (i) => margin.top + i * rowH;
+
+  const g = svg.append('g');
+
+  const agentColors = {
+    main: '#9ca3af', Explore: '#4a9eff', Plan: '#a855f7',
+    Bash: '#22c55e', 'general-purpose': '#f59e0b',
+  };
+
+  visibleAgents.forEach((agent, i) => {
+    const color = agentColors[agent.label] || '#9ca3af';
+    const barY = y(i) + 4;
+    const barH = rowH - 8;
+    const startX = x(agent.spawnTime);
+    const endX = x(agent.endTime || now);
+
+    const depth = getDepth(agent.id);
+    const indent = depth * 12;
+
+    // Connector to parent
+    if (agent.parentId) {
+      const parentIdx = visibleAgents.findIndex(a => a.id === agent.parentId);
+      if (parentIdx >= 0) {
+        g.append('line')
+          .attr('class', 'connector-line')
+          .attr('x1', startX).attr('y1', y(parentIdx) + rowH / 2)
+          .attr('x2', startX).attr('y2', barY + barH / 2);
+      }
+    }
+
+    // Agent bar background
+    g.append('rect')
+      .attr('class', `timeline-bar ${state.selectedAgentId && state.selectedAgentId !== agent.id ? 'dimmed' : ''}`)
+      .attr('x', startX).attr('y', barY)
+      .attr('width', Math.max(endX - startX, 2)).attr('height', barH)
+      .attr('rx', 3)
+      .attr('fill', color).attr('opacity', 0.3)
+      .on('click', () => selectAgent(agent.id))
+      .on('mouseenter', (e) => showTooltip(e, agentTooltipHtml(agent)))
+      .on('mouseleave', hideTooltip);
+
+    // Tool call segments within bar
+    const agentTools = state.toolCalls.filter(t => t.agentId === agent.id);
+    agentTools.forEach(tc => {
+      const tcStart = x(tc.startTime);
+      const tcEnd = x(tc.endTime || now);
+      g.append('rect')
+        .attr('class', `tool-segment ${state.selectedAgentId && state.selectedAgentId !== agent.id ? 'dimmed' : ''}`)
+        .attr('x', tcStart).attr('y', barY + 2)
+        .attr('width', Math.max(tcEnd - tcStart, 1)).attr('height', barH - 4)
+        .attr('rx', 2)
+        .attr('fill', color)
+        .on('mouseenter', (e) => showTooltip(e, `<span class="label">${tc.toolName}</span><br><span class="dim">${tc.params}</span>`))
+        .on('mouseleave', hideTooltip);
+    });
+
+    // Active agent pulsing end
+    if (!agent.endTime) {
+      g.append('rect')
+        .attr('class', 'pulse-cap')
+        .attr('x', endX - 3).attr('y', barY)
+        .attr('width', 3).attr('height', barH)
+        .attr('fill', color).attr('opacity', 0.8)
+        .attr('rx', 1);
+    }
+
+    // Label
+    const hasChildren = [...state.agents.values()].some(a => a.parentId === agent.id);
+    const collapsed = state.timelineCollapsed.has(agent.id);
+    const prefix = hasChildren ? (collapsed ? '▸ ' : '▾ ') : '  ';
+
+    g.append('text')
+      .attr('x', margin.left - 8 + indent)
+      .attr('y', barY + barH / 2 + 1)
+      .attr('text-anchor', 'end')
+      .attr('fill', color)
+      .attr('font-size', '11px')
+      .attr('cursor', hasChildren ? 'pointer' : 'default')
+      .text(prefix + agent.label + (agent.id !== 'ag_main' ? ' ' + agent.id.slice(-6) : ''))
+      .on('click', () => {
+        if (hasChildren) {
+          if (collapsed) state.timelineCollapsed.delete(agent.id);
+          else state.timelineCollapsed.add(agent.id);
+          render();
+        }
+      });
+  });
+
+  // X-axis
+  const xAxis = d3.axisBottom(x)
+    .ticks(6)
+    .tickFormat(d => {
+      const sec = ((d - xMin) / 1000).toFixed(1);
+      return `${sec}s`;
+    });
+
+  svg.append('g')
+    .attr('class', 'x-axis')
+    .attr('transform', `translate(0,${height - margin.bottom})`)
+    .call(xAxis)
+    .selectAll('text').attr('fill', '#666').attr('font-size', '10px');
+
+  svg.selectAll('.domain, .tick line').attr('stroke', '#333');
+
+  // Zoom on X-axis only
+  const zoom = d3.zoom()
+    .scaleExtent([0.5, 50])
+    .on('zoom', (event) => {
+      const newX = event.transform.rescaleX(x);
+      g.selectAll('.timeline-bar').each(function(d, i, nodes) {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const ow = parseFloat(el.attr('data-ow'));
+        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 2));
+      });
+      g.selectAll('.tool-segment').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const ow = parseFloat(el.attr('data-ow'));
+        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 1));
+      });
+      g.selectAll('.connector-line').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        el.attr('x1', newX(ox)).attr('x2', newX(ox));
+      });
+      g.selectAll('.pulse-cap').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        el.attr('x', newX(ox) - 1.5);
+      });
+      svg.select('.x-axis').call(d3.axisBottom(newX).ticks(6).tickFormat(d => {
+        return `${((d - xMin) / 1000).toFixed(1)}s`;
+      }));
+    });
+
+  // Store original time-domain values for zoom rescaling
+  g.selectAll('.timeline-bar').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
+    el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
+  });
+  g.selectAll('.tool-segment').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
+    el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
+  });
+  g.selectAll('.connector-line').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x1'))));
+  });
+  g.selectAll('.pulse-cap').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x')) + 1.5));
+  });
+
+  svg.call(zoom);
+}
+
+function buildAgentTree() {
+  const agents = [...state.agents.values()];
+  if (agents.length === 0) return [];
+
+  const roots = agents.filter(a => !a.parentId || !state.agents.has(a.parentId));
+  const result = [];
+
+  function walk(agent) {
+    result.push(agent);
+    const children = agents.filter(a => a.parentId === agent.id);
+    children.sort((a, b) => a.spawnTime - b.spawnTime);
+    children.forEach(walk);
+  }
+
+  roots.sort((a, b) => a.spawnTime - b.spawnTime);
+  roots.forEach(walk);
+  return result;
+}
+
+function isVisible(agentId) {
+  const agent = state.agents.get(agentId);
+  if (!agent) return false;
+  let current = agent;
+  while (current.parentId && state.agents.has(current.parentId)) {
+    if (state.timelineCollapsed.has(current.parentId)) return false;
+    current = state.agents.get(current.parentId);
+  }
+  return true;
+}
+
+function getDepth(agentId) {
+  let depth = 0;
+  let agent = state.agents.get(agentId);
+  while (agent && agent.parentId && state.agents.has(agent.parentId)) {
+    depth++;
+    agent = state.agents.get(agent.parentId);
+  }
+  return depth;
+}
+
+function agentTooltipHtml(a) {
+  const tokens = a.tokensIn + a.tokensOut;
+  const dur = a.endTime ? ((a.endTime - a.spawnTime) / 1000).toFixed(1) + 's' : 'running';
+  return `<span class="label">${a.label}</span> ${a.id.slice(-8)}<br>` +
+    (a.task ? `<span class="dim">${a.task.slice(0, 80)}</span><br>` : '') +
+    `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>` +
+    `Status: ${a.status}`;
+}
+
+// --- Sankey panel ---
+
+function renderSankey() {
+  const container = document.getElementById('sankey-panel');
+  const svg = d3.select('#sankey-svg');
+  const emptyEl = document.getElementById('sankey-empty');
+
+  if (state.agents.size === 0) {
+    emptyEl.style.display = 'flex';
+    svg.selectAll('*').remove();
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  const headerH = container.querySelector('.panel-header').offsetHeight;
+  const width = container.clientWidth;
+  const height = container.clientHeight - headerH;
+  const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+  svg.selectAll('*').remove();
+
+  const agents = [...state.agents.values()];
+  const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0) || 1;
+
+  // Build nodes and links for 4-column Sankey
+  const nodeMap = new Map();
+  const links = [];
+
+  // Column 0: Prompt nodes
+  const rootAgents = agents.filter(a => !a.parentId || !state.agents.has(a.parentId));
+  const promptId = 'prompt_root';
+  nodeMap.set(promptId, { id: promptId, name: 'Root Prompt', column: 0 });
+
+  // Column 1: Decomposition nodes (unique task descriptions from spawned agents)
+  const spawnedAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
+  const decomps = new Map();
+  spawnedAgents.forEach(a => {
+    const key = `decomp_${a.task.slice(0, 50) || a.id}`;
+    if (!decomps.has(key)) {
+      decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: 0 });
+    }
+    decomps.get(key).tokens += a.tokensIn + a.tokensOut;
+  });
+
+  if (decomps.size === 0 && rootAgents.length > 0) {
+    const key = 'decomp_main';
+    decomps.set(key, { id: key, name: 'Main Task', column: 1, tokens: totalTokens });
+  }
+
+  decomps.forEach((v, k) => nodeMap.set(k, v));
+
+  // Links: prompt → decomposition
+  decomps.forEach((d, key) => {
+    links.push({ source: promptId, target: key, value: Math.max(d.tokens, 1) });
+  });
+
+  // Column 2: Agent nodes (sub-agents only, not the main/root agent)
+  const allSubAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
+  const threshold = totalTokens * 0.05;
+  let subAgentsList = allSubAgents;
+  let otherTokens = 0;
+
+  // Group small agents into "Other" when there are many
+  if (allSubAgents.length > 20) {
+    subAgentsList = [];
+    allSubAgents.forEach(a => {
+      const tokens = a.tokensIn + a.tokensOut;
+      if (tokens < threshold) otherTokens += tokens;
+      else subAgentsList.push(a);
+    });
+    if (otherTokens > 0) {
+      const otherId = 'ag_other';
+      nodeMap.set(otherId, { id: otherId, name: 'Other', column: 2, tokens: otherTokens, status: 'success', label: 'other' });
+      decomps.forEach((d, key) => {
+        links.push({ source: key, target: otherId, value: Math.max(otherTokens / decomps.size, 1) });
+      });
+    }
+  }
+
+  subAgentsList.forEach(a => {
+    const tokens = a.tokensIn + a.tokensOut;
+    nodeMap.set(a.id, { id: a.id, name: `${a.label} ${a.id.slice(-6)}`, column: 2, tokens, status: a.status, label: a.label });
+  });
+
+  // Links: decomposition → agents
+  subAgentsList.forEach(a => {
+    const decompKey = `decomp_${a.task.slice(0, 50) || a.id}`;
+    const tokens = a.tokensIn + a.tokensOut;
+    if (nodeMap.has(decompKey)) {
+      links.push({ source: decompKey, target: a.id, value: Math.max(tokens, 1) });
+    }
+  });
+
+  // Column 3: Outcome nodes (from sub-agents only)
+  const outcomeMap = new Map();
+  const completedSubs = subAgentsList.filter(a => a.status !== 'running');
+
+  if (completedSubs.length > 0) {
+    const clusters = [];
+    completedSubs.forEach(a => {
+      let matched = false;
+      for (const cluster of clusters) {
+        const overlap = cluster.tags.filter(t => a.tags.includes(t));
+        if (overlap.length >= 2) {
+          cluster.agents.push(a);
+          a.tags.forEach(t => { if (!cluster.tags.includes(t)) cluster.tags.push(t); });
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        clusters.push({ tags: [...a.tags], agents: [a] });
+      }
+    });
+
+    clusters.forEach((cluster, i) => {
+      const hasError = cluster.agents.some(a => a.status === 'error');
+      const allError = cluster.agents.every(a => a.status === 'error');
+      const status = allError ? 'error' : hasError ? 'partial' : 'success';
+      const label = cluster.tags[0] || (allError ? 'Failed' : 'Completed');
+      const key = `outcome_${i}`;
+      outcomeMap.set(key, { id: key, name: label, column: 3, status });
+
+      cluster.agents.forEach(a => {
+        links.push({ source: a.id, target: key, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: a.status });
+      });
+    });
+  }
+
+  const runningSubs = subAgentsList.filter(a => a.status === 'running');
+  if (runningSubs.length > 0) {
+    const key = 'outcome_running';
+    outcomeMap.set(key, { id: key, name: 'In Progress', column: 3, status: 'running' });
+    runningSubs.forEach(a => {
+      links.push({ source: a.id, target: key, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: 'running' });
+    });
+  }
+
+  outcomeMap.forEach((v, k) => nodeMap.set(k, v));
+
+  // Build sankey data
+  const nodes = [...nodeMap.values()];
+  const nodeIndex = new Map(nodes.map((n, i) => [n.id, i]));
+
+  const sankeyLinks = links
+    .filter(l => nodeIndex.has(l.source) && nodeIndex.has(l.target) && l.source !== l.target)
+    .map(l => ({ source: nodeIndex.get(l.source), target: nodeIndex.get(l.target), value: l.value, agentStatus: l.agentStatus }));
+
+  if (nodes.length < 2 || sankeyLinks.length === 0) return;
+
+  try {
+    const sankeyGen = d3.sankey()
+      .nodeId(d => d.index)
+      .nodeAlign(d3.sankeyLeft)
+      .nodeWidth(16)
+      .nodePadding(12)
+      .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
+
+    const { nodes: sNodes, links: sLinks } = sankeyGen({
+      nodes: nodes.map((n, i) => ({ ...n, index: i })),
+      links: sankeyLinks,
+    });
+
+    const g = svg.append('g');
+
+    const statusColor = (l) => {
+      if (l.agentStatus === 'error') return 'var(--red)';
+      if (l.agentStatus === 'running') return 'var(--accent)';
+      const src = typeof l.source === 'object' ? l.source : nodes[l.source];
+      const tgt = typeof l.target === 'object' ? l.target : nodes[l.target];
+      if (src && src.status === 'error') return 'var(--red)';
+      if (tgt && tgt.status === 'error') return 'var(--red)';
+      if (src && src.status === 'running') return 'var(--accent)';
+      if (tgt && tgt.status === 'running') return 'var(--accent)';
+      if (tgt && tgt.status === 'partial') return 'var(--amber)';
+      return 'var(--green)';
+    };
+
+    // Links
+    g.selectAll('.sankey-link')
+      .data(sLinks)
+      .join('path')
+      .attr('class', d => {
+        let cls = 'sankey-link';
+        const src = typeof d.source === 'object' ? d.source : nodes[d.source];
+        const tgt = typeof d.target === 'object' ? d.target : nodes[d.target];
+        if ((tgt && tgt.status === 'running') || (src && src.status === 'running')) cls += ' in-progress';
+        if (state.selectedAgentId) {
+          if (src.id !== state.selectedAgentId && tgt.id !== state.selectedAgentId) cls += ' dimmed';
+        }
+        return cls;
+      })
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', d => statusColor(d))
+      .attr('stroke-width', d => Math.max(d.width, 1))
+      .on('mouseenter', (e, d) => {
+        const src = typeof d.source === 'object' ? d.source : nodes[d.source];
+        const tgt = typeof d.target === 'object' ? d.target : nodes[d.target];
+        showTooltip(e, `${src.name} → ${tgt.name}<br>Tokens: ${d.value.toLocaleString()}`);
+      })
+      .on('mouseleave', hideTooltip);
+
+    // Nodes
+    const node = g.selectAll('.sankey-node')
+      .data(sNodes)
+      .join('g')
+      .attr('class', 'sankey-node')
+      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+    const nodeColor = (d) => {
+      if (d.column === 0) return 'var(--accent)';
+      if (d.column === 3) {
+        if (d.status === 'error') return 'var(--red)';
+        if (d.status === 'partial') return 'var(--amber)';
+        if (d.status === 'running') return 'var(--accent)';
+        return 'var(--green)';
+      }
+      if (d.label) {
+        const colors = { main: '#9ca3af', Explore: '#4a9eff', Plan: '#a855f7', Bash: '#22c55e', 'general-purpose': '#f59e0b' };
+        return colors[d.label] || '#9ca3af';
+      }
+      return 'var(--text-dim)';
+    };
+
+    node.append('rect')
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => Math.max(d.y1 - d.y0, 1))
+      .attr('fill', nodeColor)
+      .attr('opacity', d => {
+        if (state.selectedAgentId && d.id !== state.selectedAgentId && d.column === 2) return 0.3;
+        return 0.8;
+      })
+      .on('click', (e, d) => {
+        if (d.column === 2) selectAgent(d.id);
+      });
+
+    node.append('text')
+      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 6 : -6)
+      .attr('y', d => (d.y1 - d.y0) / 2)
+      .attr('dy', '0.35em')
+      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+      .text(d => d.name.slice(0, 30));
+
+  } catch (e) {
+    // Sankey layout can fail with certain edge cases
+    console.warn('Sankey render error:', e);
+  }
+}
+
+// --- Stats panel ---
+
+function renderStats() {
+  const agents = [...state.agents.values()];
+  const now = Date.now();
+
+  // Tokens
+  const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
+  const avgTokens = agents.length > 0 ? Math.round(totalTokens / agents.length) : 0;
+  document.getElementById('val-tokens').textContent = totalTokens.toLocaleString();
+  document.getElementById('sec-tokens').textContent = `avg ${avgTokens.toLocaleString()}/agent`;
+  drawSparkline('spark-tokens', state.tokenHistory);
+
+  // Cost
+  const totalCost = agents.reduce((s, a) => s + (a.tokensIn * 15 / 1_000_000) + (a.tokensOut * 75 / 1_000_000), 0);
+  const avgCost = agents.length > 0 ? totalCost / agents.length : 0;
+  document.getElementById('val-cost').textContent = `$${totalCost.toFixed(2)}`;
+  document.getElementById('sec-cost').textContent = `avg $${avgCost.toFixed(2)}/agent`;
+  drawSparkline('spark-cost', state.costHistory);
+
+  // Agents
+  const active = agents.filter(a => a.status === 'running').length;
+  const completed = agents.filter(a => a.status === 'success').length;
+  const failed = agents.filter(a => a.status === 'error').length;
+  document.getElementById('val-agents').textContent = agents.length;
+  document.getElementById('sec-agents').textContent = `${active} active · ${completed} done · ${failed} failed`;
+  drawSparkline('spark-agents', state.agentCountHistory);
+
+  // Duration
+  if (state.sessionStart) {
+    const elapsed = (now - state.sessionStart) / 1000;
+    document.getElementById('val-duration').textContent = formatDuration(elapsed);
+
+    const done = completed + failed;
+    const incomplete = active;
+    if (done > 0 && incomplete > 0) {
+      const avgDur = agents.filter(a => a.status !== 'running')
+        .reduce((s, a) => s + (a.durationMs || 0), 0) / done;
+      const estRemaining = (incomplete / done) * (avgDur / 1000);
+      document.getElementById('sec-duration').textContent = `est. remaining: ${formatDuration(estRemaining)}`;
+    } else {
+      document.getElementById('sec-duration').textContent = `est. remaining: —`;
+    }
+  }
+
+  // Efficiency
+  const totalCompleted = agents.filter(a => a.status !== 'running').length;
+  if (totalCompleted > 0) {
+    const successRate = (completed / totalCompleted * 100).toFixed(0);
+    document.getElementById('val-efficiency').textContent = `${successRate}%`;
+    document.getElementById('efficiency-bar').style.width = `${successRate}%`;
+  } else {
+    document.getElementById('val-efficiency').textContent = '—';
+    document.getElementById('efficiency-bar').style.width = '0%';
+  }
+
+  // Agent table
+  renderAgentTable(agents);
+}
+
+function renderAgentTable(agents) {
+  const tbody = document.getElementById('agent-tbody');
+  const sorted = [...agents].sort((a, b) => {
+    let va, vb;
+    switch (state.sortCol) {
+      case 'agent': va = a.label + a.id; vb = b.label + b.id; break;
+      case 'type': va = a.label; vb = b.label; break;
+      case 'task': va = a.task; vb = b.task; break;
+      case 'tokens': va = a.tokensIn + a.tokensOut; vb = b.tokensIn + b.tokensOut; break;
+      case 'cost': va = a.tokensIn * 15 + a.tokensOut * 75; vb = b.tokensIn * 15 + b.tokensOut * 75; break;
+      case 'duration': va = a.durationMs || 0; vb = b.durationMs || 0; break;
+      case 'status': va = a.status; vb = b.status; break;
+      default: va = a.id; vb = b.id;
+    }
+    if (typeof va === 'string') return state.sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return state.sortAsc ? va - vb : vb - va;
+  });
+
+  tbody.innerHTML = sorted.map(a => {
+    const tokens = a.tokensIn + a.tokensOut;
+    const cost = (a.tokensIn * 15 / 1_000_000) + (a.tokensOut * 75 / 1_000_000);
+    const dur = a.durationMs ? formatDuration(a.durationMs / 1000) : '—';
+    const statusClass = a.status === 'running' ? 'running' : a.status === 'error' ? 'error' : 'success';
+    const selected = state.selectedAgentId === a.id ? 'selected' : '';
+    return `<tr class="${selected}" data-agent-id="${a.id}">
+      <td>${a.label} ${a.id.slice(-6)}</td>
+      <td>${a.label}</td>
+      <td title="${a.task}">${a.task.slice(0, 50)}</td>
+      <td>${tokens.toLocaleString()}</td>
+      <td>$${cost.toFixed(3)}</td>
+      <td>${dur}</td>
+      <td><span class="badge ${statusClass}">${a.status}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function drawSparkline(id, data) {
+  if (data.length < 2) return;
+  const svg = d3.select(`#${id}`);
+  svg.selectAll('*').remove();
+
+  const w = svg.node().parentElement.clientWidth;
+  const h = 24;
+  svg.attr('width', w).attr('height', h);
+
+  const x = d3.scaleLinear().domain([0, data.length - 1]).range([0, w]);
+  const y = d3.scaleLinear().domain([0, d3.max(data) || 1]).range([h - 2, 2]);
+
+  const line = d3.line().x((d, i) => x(i)).y(d => y(d)).curve(d3.curveMonotoneX);
+  svg.append('path').datum(data).attr('d', line);
+}
+
+function formatDuration(seconds) {
+  if (seconds < 60) return `${seconds.toFixed(0)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+// --- Cross-panel interactions ---
+
+function selectAgent(agentId) {
+  if (state.selectedAgentId === agentId) {
+    state.selectedAgentId = null;
+  } else {
+    state.selectedAgentId = agentId;
+  }
+  document.dispatchEvent(new CustomEvent('agent-select', { detail: { agentId: state.selectedAgentId } }));
+  render();
+}
+
+document.addEventListener('agent-select', (e) => {
+  const { agentId } = e.detail;
+  // Scroll to agent in table
+  if (agentId) {
+    const row = document.querySelector(`tr[data-agent-id="${agentId}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+});
+
+// --- Tooltip ---
+
+function showTooltip(event, html) {
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  const x = Math.min(event.pageX + 12, window.innerWidth - 320);
+  const y = Math.min(event.pageY + 12, window.innerHeight - 100);
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// --- Event listeners ---
+
+document.getElementById('table-toggle').addEventListener('click', () => {
+  state.tableVisible = !state.tableVisible;
+  document.getElementById('table-wrap').style.display = state.tableVisible ? 'block' : 'none';
+  document.getElementById('table-toggle').textContent = state.tableVisible ? '▾ Agent Table' : '▸ Agent Table';
+});
+
+document.querySelectorAll('#agent-table th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (state.sortCol === col) state.sortAsc = !state.sortAsc;
+    else { state.sortCol = col; state.sortAsc = true; }
+    renderStats();
+  });
+});
+
+document.getElementById('agent-tbody').addEventListener('click', (e) => {
+  const row = e.target.closest('tr');
+  if (row) selectAgent(row.dataset.agentId);
+});
+
+document.getElementById('session-select').addEventListener('change', (e) => {
+  const sid = e.target.value;
+  if (sid) loadSession(sid);
+  else loadSession();
+});
+
+// Click empty space to clear selection
+document.querySelectorAll('.panel').forEach(panel => {
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel || e.target.classList.contains('panel-header')) {
+      state.selectedAgentId = null;
+      render();
+    }
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    state.selectedAgentId = null;
+    render();
+  }
+  if (e.key === ' ' && !e.target.closest('input, select, textarea')) {
+    e.preventDefault();
+    state.paused = !state.paused;
+    document.getElementById('status-text').textContent = state.paused ? 'Paused' : 'Connected';
+  }
+});
+
+// --- Init ---
+
+(async function init() {
+  await loadSession();
+  await loadSessions();
+  connectSSE();
+  render();
+
+  // Re-render periodically for running agents (bar growth)
+  setInterval(() => {
+    if (!state.paused && state.agents.size > 0) render();
+  }, 2000);
+})();
+</script>
+</body>
+</html>

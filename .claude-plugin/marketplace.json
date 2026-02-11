@@ -116,6 +116,12 @@
       "description": "Guided builder for Ralph Wiggum loop prompts — interrogates user, designs phased implementation plans with objective verification, and outputs ready-to-run /ralph-loop prompts",
       "source": "./plugins/ralphinator",
       "strict": false
+    },
+    {
+      "name": "agent-scry",
+      "description": "Real-time observation dashboard for Claude Code agent swarms with timeline, Sankey flow, and live stats panels",
+      "source": "./plugins/agent-scry",
+      "strict": false
     }
   ]
 }

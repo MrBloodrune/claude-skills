@@ -1,0 +1,160 @@
+import { createServer } from 'node:http';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const BASE_DIR = join(process.env.HOME, '.claude', 'observatory');
+const SESSIONS_DIR = join(BASE_DIR, 'sessions');
+const PID_FILE = join(BASE_DIR, 'server.pid');
+const DASHBOARD_PATH = join(__dirname, '..', 'dashboard', 'index.html');
+
+mkdirSync(SESSIONS_DIR, { recursive: true });
+
+const bus = new EventEmitter();
+bus.setMaxListeners(100);
+
+let currentSessionId = null;
+let lastEventTime = Date.now();
+const startTime = Date.now();
+
+function sessionPath(sid) {
+  return join(SESSIONS_DIR, `${sid}.jsonl`);
+}
+
+function readSessionEvents(sid) {
+  const p = sessionPath(sid);
+  if (!existsSync(p)) return [];
+  return readFileSync(p, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+}
+
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
+      catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function cors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+function json(res, status, data) {
+  cors(res);
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, `http://localhost:${PORT}`);
+  const path = url.pathname;
+
+  if (req.method === 'OPTIONS') {
+    cors(res);
+    res.writeHead(204);
+    return res.end();
+  }
+
+  if (req.method === 'POST' && path === '/api/events') {
+    let event;
+    try { event = await parseBody(req); }
+    catch { return json(res, 400, { error: 'Invalid JSON' }); }
+
+    if (!event.event_type || !event.timestamp) {
+      return json(res, 400, { error: 'Missing event_type or timestamp' });
+    }
+
+    const sid = event.session_id || currentSessionId || `ses_${Date.now()}`;
+    if (!currentSessionId) currentSessionId = sid;
+    event.session_id = sid;
+
+    appendFileSync(sessionPath(sid), JSON.stringify(event) + '\n');
+    lastEventTime = Date.now();
+    bus.emit('event', event);
+    return json(res, 201, { ok: true, id: event.id });
+  }
+
+  if (req.method === 'GET' && path === '/api/events') {
+    cors(res);
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    res.write(':ok\n\n');
+
+    const onEvent = (event) => {
+      res.write(`event: message\ndata: ${JSON.stringify(event)}\n\n`);
+    };
+    bus.on('event', onEvent);
+    req.on('close', () => bus.off('event', onEvent));
+    return;
+  }
+
+  if (req.method === 'GET' && path === '/api/session') {
+    const sid = url.searchParams.get('id') || currentSessionId;
+    if (!sid) return json(res, 200, []);
+    return json(res, 200, readSessionEvents(sid));
+  }
+
+  if (req.method === 'GET' && path === '/api/sessions') {
+    if (!existsSync(SESSIONS_DIR)) return json(res, 200, []);
+    const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl')).map(f => ({
+      id: f.replace('.jsonl', ''),
+      file: f,
+    }));
+    return json(res, 200, files);
+  }
+
+  if (req.method === 'GET' && path === '/api/health') {
+    return json(res, 200, { status: 'ok', uptime: Math.floor((Date.now() - startTime) / 1000) });
+  }
+
+  if (req.method === 'GET' && path === '/') {
+    cors(res);
+    try {
+      const html = readFileSync(DASHBOARD_PATH, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end(html);
+    } catch {
+      res.writeHead(404);
+      return res.end('Dashboard not found');
+    }
+  }
+
+  res.writeHead(404);
+  res.end('Not found');
+});
+
+server.listen(PORT, () => {
+  writeFileSync(PID_FILE, process.pid.toString());
+  console.log(`Observatory server listening on http://localhost:${PORT}`);
+  console.log(`PID ${process.pid} written to ${PID_FILE}`);
+});
+
+const idleCheck = setInterval(() => {
+  if (Date.now() - lastEventTime > IDLE_TIMEOUT_MS) {
+    console.log('Idle timeout reached, shutting down.');
+    cleanup();
+  }
+}, 60_000);
+
+function cleanup() {
+  clearInterval(idleCheck);
+  try { unlinkSync(PID_FILE); } catch {}
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000);
+}
+
+process.on('SIGTERM', cleanup);
+process.on('SIGINT', cleanup);
