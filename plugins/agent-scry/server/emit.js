@@ -20,7 +20,6 @@ process.stdin.on('data', chunk => { input += chunk; });
 process.stdin.on('end', () => {
   let payload;
   try { payload = JSON.parse(input); } catch { payload = {}; }
-  appendFileSync(join(BASE_DIR, 'hook-debug.jsonl'), JSON.stringify({ event_type: eventType, raw: payload, ts: Date.now() }) + '\n');
   processEvent(payload);
 });
 
@@ -31,6 +30,7 @@ function hash(str) {
 function buildEvent(payload) {
   const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || `ses_${Date.now()}`;
   const now = Date.now();
+  const toolInput = payload.tool_input || {};
 
   const event = {
     id: `evt_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
@@ -40,34 +40,37 @@ function buildEvent(payload) {
   };
 
   if (eventType === 'session_start') {
-    event.agent_id = `ag_main`;
+    event.agent_id = 'ag_main';
     event.agent_label = 'main';
     return event;
   }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
-    event.tool_name = payload.tool_name || payload.tool || 'unknown';
-    event.tool_params_summary = payload.tool_params_summary || summarizeParams(payload);
+    event.tool_name = payload.tool_name || 'unknown';
+    event.tool_params_summary = summarizeParams(toolInput);
     event.agent_id = payload.agent_id || 'ag_main';
     event.agent_label = payload.agent_label || 'main';
 
     if (eventType === 'tool_start' && event.tool_name === 'Task') {
-      const desc = payload.description || payload.prompt || '';
+      const desc = toolInput.description || toolInput.prompt || '';
+      const agentType = toolInput.subagent_type || 'general-purpose';
       const agentId = `ag_${hash(sessionId + now + desc)}`;
-      const agentLabel = payload.subagent_type || 'general-purpose';
-      const pendingFile = join(PENDING_DIR, `${agentLabel}-${agentId}.json`);
+      const pendingFile = join(PENDING_DIR, `${agentType}-${agentId}.json`);
       writeFileSync(pendingFile, JSON.stringify({
         agent_id: agentId,
         parent_agent_id: event.agent_id,
-        agent_label: agentLabel,
+        agent_label: agentType,
         task_description: desc,
         timestamp: now,
         session_id: event.session_id,
       }));
       event.spawns_agent_id = agentId;
+      event.agent_spawn_label = agentType;
+      event.agent_spawn_task = desc;
     }
 
     if (eventType === 'tool_end') {
+      const resp = payload.tool_response || {};
       event.tokens_in = payload.tokens_in || 0;
       event.tokens_out = payload.tokens_out || 0;
       event.duration_ms = payload.duration_ms || 0;
@@ -78,8 +81,8 @@ function buildEvent(payload) {
   if (eventType === 'agent_spawn') {
     event.agent_id = payload.agent_id || `ag_${hash(sessionId + now)}`;
     event.parent_agent_id = payload.parent_agent_id || null;
-    event.agent_label = payload.agent_label || 'general-purpose';
-    event.task_description = payload.task_description || '';
+    event.agent_label = toolInput.subagent_type || payload.agent_label || 'general-purpose';
+    event.task_description = toolInput.description || payload.task_description || '';
     event.task_tags = payload.task_tags || [];
     return event;
   }
@@ -102,11 +105,10 @@ function buildEvent(payload) {
   return event;
 }
 
-function summarizeParams(payload) {
-  const params = payload.tool_params || payload.input || {};
-  if (typeof params === 'string') return params.slice(0, 100);
-  const entries = Object.entries(params).slice(0, 3);
-  return entries.map(([k, v]) => `${k}=${String(v).slice(0, 50)}`).join(' ');
+function summarizeParams(toolInput) {
+  if (!toolInput || typeof toolInput !== 'object') return '';
+  const entries = Object.entries(toolInput).slice(0, 3);
+  return entries.map(([k, v]) => `${k}=${String(v).slice(0, 60)}`).join(' ');
 }
 
 function matchPending(payload) {
@@ -129,10 +131,7 @@ function postToServer(event) {
       hostname: 'localhost', port: PORT, path: '/api/events',
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
       timeout: 3000,
-    }, (res) => {
-      res.resume();
-      resolve(true);
-    });
+    }, (res) => { res.resume(); resolve(true); });
     req.on('error', () => resolve(false));
     req.on('timeout', () => { req.destroy(); resolve(false); });
     req.end(body);
