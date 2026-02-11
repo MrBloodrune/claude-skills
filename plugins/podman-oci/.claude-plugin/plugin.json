@@ -1,0 +1,9 @@
+{
+  "name": "podman-oci",
+  "version": "1.0.0",
+  "description": "Podman container workflows: rootless networking, Quadlet systemd units, pod composition, Containerfile patterns, and registry auth",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["podman", "oci", "containers", "quadlet", "systemd", "rootless"]
+}
