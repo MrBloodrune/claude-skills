@@ -39,12 +39,12 @@ function buildEvent(payload) {
   };
 
   if (eventType === 'session_start') {
-    return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null });
+    return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null, model: payload.model || null, cwd: payload.cwd || null });
   }
   if (eventType === 'compaction') {
-    return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto' });
+    return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto', cwd: payload.cwd || null });
   }
-  if (eventType === 'session_end') { event.agent_id = 'ag_main'; return event; }
+  if (eventType === 'session_end') { event.agent_id = 'ag_main'; event.cwd = payload.cwd || null; return event; }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
     event.tool_name = payload.tool_name || 'unknown';

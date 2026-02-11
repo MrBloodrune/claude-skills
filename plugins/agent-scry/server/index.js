@@ -181,6 +181,24 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  if (req.method === 'GET' && path === '/api/claude-md') {
+    const project = url.searchParams.get('project');
+    if (!project) return json(res, 400, { error: 'Missing project parameter' });
+    const slug = project.replace(/\//g, '-');
+    const home = process.env.HOME || '/home';
+    // Check project-specific CLAUDE.md first, then project root
+    const projectClaudePath = join(home, '.claude', 'projects', slug, 'CLAUDE.md');
+    const rootClaudePath = join(project, 'CLAUDE.md');
+    for (const p of [projectClaudePath, rootClaudePath]) {
+      try {
+        const content = readFileSync(p, 'utf8');
+        const lineCount = content.split('\n').length;
+        return json(res, 200, { content, path: p, lineCount });
+      } catch {}
+    }
+    return json(res, 404, { error: 'CLAUDE.md not found', paths: [projectClaudePath, rootClaudePath] });
+  }
+
   if (req.method === 'GET' && path === '/') {
     cors(res);
     try {

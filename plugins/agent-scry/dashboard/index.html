@@ -847,24 +847,52 @@ header .status .dot.disconnected {
 .plan-cycle-num { font-size: 12px; font-weight: 700; color: var(--purple); }
 .plan-write-dot { fill: var(--purple); cursor: pointer; }
 
-/* ═══ MEMORY TAB ═══ */
-.memory-path {
+/* ═══ CONTEXT TAB ═══ */
+.context-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.context-section:last-child { border-bottom: none; margin-bottom: 0; }
+.context-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.context-section-header h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin: 0;
+}
+.context-section-header .ctx-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+.context-path {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
   color: var(--text-dim);
-  padding: 8px 8px 4px;
+  padding: 0 8px 4px;
 }
-.memory-content {
+.context-content {
   font-family: 'DM Mono', monospace;
   font-size: 11px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary);
-  padding: 8px;
+  padding: 4px 8px;
 }
-.memory-content.below-truncation { opacity: 0.5; }
-.memory-truncation-mark {
+.context-content.below-truncation { opacity: 0.5; }
+.context-truncation-mark {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -878,7 +906,7 @@ header .status .dot.disconnected {
   background: rgba(234, 179, 8, 0.04);
   letter-spacing: 0.3px;
 }
-.memory-empty {
+.context-empty {
   color: var(--text-dim);
   font-size: 12px;
   text-align: center;
@@ -987,25 +1015,14 @@ header .status .dot.disconnected {
   <div id="sidebar-panel">
     <div class="sidebar-tabs">
       <div class="sidebar-tab active" data-tab="agents">Agents</div>
+      <div class="sidebar-tab" data-tab="events">Events</div>
       <div class="sidebar-tab" data-tab="tasks">Tasks</div>
       <div class="sidebar-tab" data-tab="plan">Plan</div>
-      <div class="sidebar-tab" data-tab="events">Events</div>
-      <div class="sidebar-tab" data-tab="memory">Memory</div>
+      <div class="sidebar-tab" data-tab="context">Context</div>
     </div>
     <div class="sidebar-content">
       <div class="sidebar-pane active" id="pane-agents">
         <div id="agent-cards-container"></div>
-      </div>
-      <div class="sidebar-pane" id="pane-tasks">
-        <ul class="task-list" id="task-list"></ul>
-      </div>
-      <div class="sidebar-pane" id="pane-plan">
-        <div class="plan-panel" id="plan-panel">
-          <div class="plan-empty">No plan detected</div>
-        </div>
-      </div>
-      <div class="sidebar-pane" id="pane-memory">
-        <div class="memory-empty">Click to load memory</div>
       </div>
       <div class="sidebar-pane" id="pane-events" style="display:none;flex-direction:column;height:100%">
         <div class="event-log-controls">
@@ -1022,6 +1039,17 @@ header .status .dot.disconnected {
           </select>
         </div>
         <ul class="event-log-list" id="event-log-list"></ul>
+      </div>
+      <div class="sidebar-pane" id="pane-tasks">
+        <ul class="task-list" id="task-list"></ul>
+      </div>
+      <div class="sidebar-pane" id="pane-plan">
+        <div class="plan-panel" id="plan-panel">
+          <div class="plan-empty">No plan detected</div>
+        </div>
+      </div>
+      <div class="sidebar-pane" id="pane-context">
+        <div class="context-empty">Loading context...</div>
       </div>
     </div>
   </div>
@@ -1114,7 +1142,7 @@ function ingestEvent(evt) {
         label: 'main',
         task: 'Root session',
         tags: [],
-        model: null,
+        model: evt.model || null,
         spawnTime: evt.timestamp,
         endTime: null,
         tokensIn: 0,
@@ -1368,7 +1396,7 @@ async function loadSession(sessionId) {
   state.highlightTimestamp = null;
   state.highlightedEventId = null;
   state.highlightedPlanCycle = null;
-  memoryLoaded = false;
+  contextLoaded = false;
   events.forEach(e => ingestEvent(e));
   const lastTs = events.length ? events[events.length - 1].timestamp : 0;
   if (lastTs && (Date.now() - lastTs > IDLE_THRESHOLD_MS)) finalizeRunningAgents();
@@ -1917,7 +1945,7 @@ function renderSankey() {
   const headerH = container.querySelector('.panel-header').offsetHeight;
   const width = container.clientWidth;
   const height = container.clientHeight - headerH;
-  const margin = { top: 24, right: 100, bottom: 28, left: 60 };
+  const margin = { top: 28, right: 100, bottom: 28, left: 60 };
 
   svg.attr('width', width).attr('height', height);
   svg.selectAll('*').remove();
@@ -2048,9 +2076,18 @@ function renderSankey() {
     }
   }
 
+  const modelAbbr = (m) => {
+    if (!m) return '';
+    if (m.includes('opus')) return 'Op';
+    if (m.includes('sonnet')) return 'So';
+    if (m.includes('haiku')) return 'Ha';
+    return m.slice(0, 2);
+  };
   agentList.forEach(a => {
     const tokens = a.tokensIn + a.tokensOut;
-    nodeMap.set(a.id, { id: a.id, name: a.id.slice(-6), column: 2, tokens, status: a.status, label: a.label });
+    const abbr = modelAbbr(a.model);
+    const name = abbr ? `${abbr} ${a.id.slice(-6)}` : a.id.slice(-6);
+    nodeMap.set(a.id, { id: a.id, name, column: 2, tokens, status: a.status, label: a.label });
   });
 
   // Links: phase → agents (matched by label)
@@ -2137,7 +2174,7 @@ function renderSankey() {
   if (nodes.length < 2 || sankeyLinks.length === 0) return;
 
   try {
-    const dynamicPadding = nodes.length > 15 ? 4 : nodes.length > 8 ? 8 : 14;
+    const dynamicPadding = nodes.length > 15 ? 6 : nodes.length > 8 ? 10 : 16;
     const sankeyGen = d3.sankey()
       .nodeId(d => d.index)
       .nodeAlign(d3.sankeyLeft)
@@ -2150,8 +2187,8 @@ function renderSankey() {
       links: sankeyLinks,
     });
 
-    // Per-column rect widths
-    const colWidths = { 0: 120, 1: 130, 2: 60, 3: 110 };
+    // Per-column rect widths — column 0 uses compact pills
+    const colWidths = { 0: 80, 1: 130, 2: 70, 3: 110 };
 
     const cycleHues = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#ec4899'];
     const nodeColor = (d) => {
@@ -2234,19 +2271,31 @@ function renderSankey() {
       })
       .on('mouseleave', hideTooltip);
 
+    // Node height helper — column 0 uses pill caps
+    const nodeH = (d) => {
+      if (d.column === 0) return Math.min(Math.max(d.y1 - d.y0, 22), 28);
+      return Math.max(d.y1 - d.y0, 20);
+    };
+    // Vertical offset to center pill within Sankey allocation
+    const nodeYOff = (d) => {
+      const allocated = d.y1 - d.y0;
+      const actual = nodeH(d);
+      return actual < allocated ? (allocated - actual) / 2 : 0;
+    };
+
     // Node groups — translate to wide rect center
     const node = g.selectAll('.sankey-node')
       .data(sNodes)
       .join('g')
       .attr('class', 'sankey-node')
-      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+      .attr('transform', d => `translate(${d.x0},${d.y0 + nodeYOff(d)})`);
 
     // Wide colored rects per column
     node.append('rect')
       .attr('x', d => -(colWidths[d.column] - (d.x1 - d.x0)) / 2)
       .attr('width', d => colWidths[d.column] || 12)
-      .attr('height', d => Math.max(d.y1 - d.y0, 20))
-      .attr('rx', 4)
+      .attr('height', nodeH)
+      .attr('rx', d => d.column === 0 ? 12 : 4)
       .attr('fill', nodeColor)
       .attr('opacity', d => {
         if (state.selectedAgentId && d.id !== state.selectedAgentId && d.column === 2) return 0.3;
@@ -2279,7 +2328,7 @@ function renderSankey() {
     // Labels centered inside rects
     node.append('text')
       .attr('x', d => (colWidths[d.column] - (d.x1 - d.x0)) / 2)
-      .attr('y', d => Math.max(d.y1 - d.y0, 20) / 2)
+      .attr('y', d => nodeH(d) / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
       .text(d => {
@@ -2827,57 +2876,71 @@ function closeDrawer() {
   document.getElementById('detail-drawer').classList.remove('open');
 }
 
-// --- Memory sidebar ---
+// --- Context sidebar (CLAUDE.md + MEMORY.md) ---
 
-let memoryLoaded = false;
+let contextLoaded = false;
 
-async function loadMemoryTab() {
-  const pane = document.getElementById('pane-memory');
+function getProjectPath() {
+  for (let i = state.events.length - 1; i >= 0; i--) {
+    if (state.events[i].cwd) return state.events[i].cwd;
+  }
+  return null;
+}
+
+function renderContextSection(label, data, truncationLine) {
+  if (!data) return `<div class="context-section"><div class="context-section-header"><h3>${label}</h3><span class="ctx-meta">not found</span></div></div>`;
+  const content = data.content || '';
+  const lines = content.split('\n');
+  const lineCount = data.lineCount || lines.length;
+
+  let html = `<div class="context-section">`;
+  html += `<div class="context-section-header"><h3>${label}</h3><span class="ctx-meta">${lineCount} lines</span></div>`;
+  html += `<div class="context-path">${esc(data.path)}</div>`;
+
+  if (truncationLine && lineCount > truncationLine) {
+    const above = lines.slice(0, truncationLine).join('\n');
+    const below = lines.slice(truncationLine).join('\n');
+    html += `<div class="context-content">${esc(above)}</div>`;
+    html += `<div class="context-truncation-mark">── Line ${truncationLine} — content below is truncated from system prompt ──</div>`;
+    html += `<div class="context-content below-truncation">${esc(below)}</div>`;
+  } else {
+    html += `<div class="context-content">${esc(content)}</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+async function loadContextTab() {
+  const pane = document.getElementById('pane-context');
   if (!pane) return;
 
-  // Find project path from most recent cwd in events
-  let projectPath = null;
-  for (let i = state.events.length - 1; i >= 0; i--) {
-    if (state.events[i].cwd) { projectPath = state.events[i].cwd; break; }
-  }
-
+  const projectPath = getProjectPath();
   if (!projectPath) {
-    pane.innerHTML = '<div class="memory-empty">No project path detected from events</div>';
+    pane.innerHTML = '<div class="context-empty">No project path detected from events</div>';
     return;
   }
 
-  pane.innerHTML = '<div class="memory-empty">Loading memory...</div>';
+  pane.innerHTML = '<div class="context-empty">Loading context...</div>';
+  const enc = encodeURIComponent(projectPath);
 
-  try {
-    const res = await fetch(`/api/memory?project=${encodeURIComponent(projectPath)}`);
-    const data = await res.json();
-    if (!res.ok) {
-      pane.innerHTML = `<div class="memory-empty">${esc(data.error || 'Not found')}<br><span style="font-size:10px">${esc(data.path || '')}</span></div>`;
-      return;
-    }
+  const [claudeRes, memRes] = await Promise.allSettled([
+    fetch(`/api/claude-md?project=${enc}`).then(r => r.ok ? r.json() : null),
+    fetch(`/api/memory?project=${enc}`).then(r => r.ok ? r.json() : null),
+  ]);
 
-    const content = data.content || '';
-    const lines = content.split('\n');
-    const lineCount = data.lineCount || lines.length;
-    const TRUNCATION_LINE = 200;
+  const claudeData = claudeRes.status === 'fulfilled' ? claudeRes.value : null;
+  const memData = memRes.status === 'fulfilled' ? memRes.value : null;
 
-    let html = `<div class="memory-path">${esc(data.path)} · ${lineCount} lines</div>`;
-
-    if (lineCount > TRUNCATION_LINE) {
-      const above = lines.slice(0, TRUNCATION_LINE).join('\n');
-      const below = lines.slice(TRUNCATION_LINE).join('\n');
-      html += `<div class="memory-content">${esc(above)}</div>`;
-      html += `<div class="memory-truncation-mark">── Line ${TRUNCATION_LINE} — content below is truncated from system prompt ──</div>`;
-      html += `<div class="memory-content below-truncation">${esc(below)}</div>`;
-    } else {
-      html += `<div class="memory-content">${esc(content)}</div>`;
-    }
-
-    pane.innerHTML = html;
-    memoryLoaded = true;
-  } catch (err) {
-    pane.innerHTML = `<div class="memory-empty">Failed to load: ${esc(err.message)}</div>`;
+  if (!claudeData && !memData) {
+    pane.innerHTML = '<div class="context-empty">No CLAUDE.md or MEMORY.md found for this project</div>';
+    return;
   }
+
+  let html = '';
+  if (claudeData) html += renderContextSection('CLAUDE.md', claudeData, null);
+  if (memData) html += renderContextSection('MEMORY.md', memData, 200);
+  pane.innerHTML = html;
+  contextLoaded = true;
 }
 
 // --- Event listeners ---
@@ -2887,7 +2950,7 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     switchTab(tab.dataset.tab);
     if (tab.dataset.tab === 'events') renderEventLog();
-    if (tab.dataset.tab === 'memory' && !memoryLoaded) loadMemoryTab();
+    if (tab.dataset.tab === 'context' && !contextLoaded) loadContextTab();
   });
 });
 

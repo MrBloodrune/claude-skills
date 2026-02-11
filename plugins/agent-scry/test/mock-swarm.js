@@ -36,7 +36,7 @@ async function toolCall(agentId, label, tool, params, opts = {}) {
   await post(evt({
     event_type: 'tool_start', agent_id: agentId, agent_label: label,
     tool_name: tool, tool_params_summary: params, tool_use_id: id,
-    cwd: opts.cwd || null,
+    cwd: opts.cwd || '/home/user/projects/auth-system',
     ...(opts.task_data ? { task_data: opts.task_data } : {}),
     ...(opts.plan_data ? { plan_data: opts.plan_data } : {}),
     ...(opts.spawns ? { spawns_agent_id: opts.spawns.id, agent_spawn_label: opts.spawns.label, agent_spawn_task: opts.spawns.task } : {}),
@@ -79,8 +79,8 @@ async function run() {
   // ═══════════════════════════════════════════
   // SESSION START
   // ═══════════════════════════════════════════
-  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main', transcript_path: MOCK_TRANSCRIPT }));
-  console.log('  session_start');
+  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main', transcript_path: MOCK_TRANSCRIPT, model: 'claude-sonnet-4-5-20250929', cwd: '/home/user/projects/auth-system' }));
+  console.log('  session_start (sonnet, cwd set)');
   await sleep(300);
 
   // ═══════════════════════════════════════════
