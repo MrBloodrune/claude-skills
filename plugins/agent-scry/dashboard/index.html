@@ -526,6 +526,32 @@ function updateHistories() {
 
 let evtSource = null;
 let reconnectTimer = null;
+let lastEventAt = 0;
+let idleTimer = null;
+const IDLE_THRESHOLD_MS = 15_000;
+
+function finalizeRunningAgents() {
+  const now = Date.now();
+  let changed = false;
+  for (const agent of state.agents.values()) {
+    if (agent.status === 'running') {
+      agent.endTime = agent.endTime || lastEventAt || now;
+      agent.durationMs = agent.endTime - agent.spawnTime;
+      agent.status = 'success';
+      changed = true;
+    }
+  }
+  for (const tc of state.toolCalls) {
+    if (!tc.endTime) { tc.endTime = lastEventAt || now; changed = true; }
+  }
+  if (changed) render();
+}
+
+function resetIdleTimer() {
+  lastEventAt = Date.now();
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(finalizeRunningAgents, IDLE_THRESHOLD_MS);
+}
 
 function connectSSE() {
   if (evtSource) evtSource.close();
@@ -535,6 +561,7 @@ function connectSSE() {
   evtSource.addEventListener('message', (e) => {
     const evt = JSON.parse(e.data);
     ingestEvent(evt);
+    resetIdleTimer();
     if (!state.paused) render();
   });
 
@@ -550,6 +577,7 @@ function connectSSE() {
     document.getElementById('status-dot').classList.add('disconnected');
     document.getElementById('status-text').textContent = 'Disconnected';
     evtSource.close();
+    finalizeRunningAgents();
     if (!reconnectTimer) {
       reconnectTimer = setInterval(connectSSE, 3000);
     }
@@ -568,6 +596,8 @@ async function loadSession(sessionId) {
   state.costHistory = [];
   state.agentCountHistory = [];
   events.forEach(e => ingestEvent(e));
+  const lastTs = events.length ? events[events.length - 1].timestamp : 0;
+  if (lastTs && (Date.now() - lastTs > IDLE_THRESHOLD_MS)) finalizeRunningAgents();
   render();
 }
 
