@@ -1,7 +1,11 @@
 import { request } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 
 const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
 const SESSION_ID = `ses_mock_${Date.now()}`;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MOCK_TRANSCRIPT = join(__dirname, 'mock-transcript.jsonl');
 
 function post(event) {
   return new Promise((resolve, reject) => {
@@ -26,6 +30,7 @@ function sleep(ms) {
 }
 
 let eventCounter = 0;
+let toolUseCounter = 0;
 function evt(overrides) {
   eventCounter++;
   return {
@@ -36,22 +41,28 @@ function evt(overrides) {
   };
 }
 
+function nextToolUseId() {
+  toolUseCounter++;
+  return `tu_mock_${toolUseCounter.toString().padStart(3, '0')}`;
+}
+
 async function run() {
   console.log(`Mock swarm starting — session ${SESSION_ID}`);
   const t0 = Date.now();
 
   // Session start
-  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main' }));
+  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main', transcript_path: MOCK_TRANSCRIPT }));
   console.log('  session_start');
   await sleep(500);
 
   // Main agent tool calls
   const mainTools = ['Read', 'Glob', 'Grep', 'Read', 'Edit'];
   for (const tool of mainTools) {
-    await post(evt({ event_type: 'tool_start', agent_id: 'ag_main', agent_label: 'main', tool_name: tool, tool_params_summary: `file=src/${tool.toLowerCase()}.js` }));
+    const tuId = nextToolUseId();
+    await post(evt({ event_type: 'tool_start', agent_id: 'ag_main', agent_label: 'main', tool_name: tool, tool_params_summary: `file=src/${tool.toLowerCase()}.js`, tool_use_id: tuId, cwd: '/project/src' }));
     console.log(`  tool_start: ${tool} (main)`);
     await sleep(800 + Math.random() * 1500);
-    await post(evt({ event_type: 'tool_end', agent_id: 'ag_main', agent_label: 'main', tool_name: tool, tokens_in: 500 + Math.floor(Math.random() * 2000), tokens_out: 200 + Math.floor(Math.random() * 1000), duration_ms: 800 + Math.floor(Math.random() * 2000) }));
+    await post(evt({ event_type: 'tool_end', agent_id: 'ag_main', agent_label: 'main', tool_name: tool, tokens_in: 500 + Math.floor(Math.random() * 2000), tokens_out: 200 + Math.floor(Math.random() * 1000), duration_ms: 800 + Math.floor(Math.random() * 2000), tool_use_id: tuId, has_error: false, tool_response_summary: `Found ${Math.floor(Math.random() * 20)} results in src/` }));
     console.log(`  tool_end: ${tool} (main)`);
     await sleep(300);
   }
@@ -96,6 +107,8 @@ async function run() {
     for (const p of pending) {
       if (p.idx >= p.tools.length) continue;
       const tool = p.tools[p.idx];
+      const tuId = nextToolUseId();
+      const isBashError = p.agentId === 'ag_bash_01' && tool === 'Bash' && p.idx === 1;
 
       await post(evt({
         event_type: 'tool_start',
@@ -103,6 +116,8 @@ async function run() {
         agent_label: p.label,
         tool_name: tool,
         tool_params_summary: `pattern='auth.*handler'`,
+        tool_use_id: tuId,
+        cwd: tool === 'Bash' ? '/project' : null,
       }));
       console.log(`  tool_start: ${tool} (${p.agentId})`);
       await sleep(500 + Math.random() * 2000);
@@ -115,8 +130,11 @@ async function run() {
         tokens_in: 1000 + Math.floor(Math.random() * 5000),
         tokens_out: 300 + Math.floor(Math.random() * 2000),
         duration_ms: 500 + Math.floor(Math.random() * 3000),
+        tool_use_id: tuId,
+        has_error: isBashError,
+        tool_response_summary: isBashError ? 'ENOENT: npm not found in PATH' : `Completed ${tool} operation`,
       }));
-      console.log(`  tool_end: ${tool} (${p.agentId})`);
+      console.log(`  tool_end: ${tool} (${p.agentId})${isBashError ? ' [ERROR]' : ''}`);
 
       p.idx++;
       await sleep(200 + Math.random() * 500);
@@ -124,7 +142,6 @@ async function run() {
   }
 
   // Complete sub-agents
-  // ag_explore_01 and ag_plan_01 contribute to same outcome (auth)
   await post(evt({
     event_type: 'agent_complete',
     agent_id: 'ag_explore_01',
@@ -137,6 +154,7 @@ async function run() {
     duration_ms: Date.now() - t0 - 2000,
     status: 'success',
     contributes_to: ['task_auth'],
+    transcript_path: MOCK_TRANSCRIPT,
   }));
   console.log('  agent_complete: ag_explore_01 (success)');
   await sleep(1000);

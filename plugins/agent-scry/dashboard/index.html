@@ -310,11 +310,173 @@ header .status .dot.disconnected {
   stroke-dasharray: 8,4;
   animation: dash 1s linear infinite;
 }
+
+/* Detail drawer */
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: -440px;
+  width: 420px;
+  height: 100vh;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.25s ease;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+}
+
+.detail-drawer.open { right: 0; }
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-header h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0;
+}
+
+.drawer-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.drawer-close:hover { color: var(--text); }
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.drawer-section {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+}
+
+.drawer-section h3 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.drawer-kv {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 4px 8px;
+  font-size: 11px;
+}
+
+.drawer-kv .k { color: var(--text-dim); }
+.drawer-kv .v { color: var(--text); word-break: break-all; }
+
+.drawer-prompt {
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--text);
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.drawer-tool-list { list-style: none; font-size: 11px; }
+
+.drawer-tool-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-tool-list li:last-child { border-bottom: none; }
+
+.drawer-tool-name { color: var(--accent); font-weight: 600; }
+.drawer-tool-error { color: var(--red); }
+.drawer-tool-output {
+  color: var(--text-dim);
+  font-size: 10px;
+  white-space: pre-wrap;
+  max-height: 80px;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 4px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+
+.drawer-file-list { list-style: none; font-size: 11px; }
+.drawer-file-list li { padding: 2px 0; }
+.file-op { display: inline-block; width: 16px; font-weight: 700; font-size: 10px; }
+.file-op.read { color: var(--accent); }
+.file-op.write { color: var(--green); }
+.file-op.edit { color: var(--amber); }
+
+.drawer-error {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--red);
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.drawer-loading {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 24px;
+  font-size: 12px;
+}
+
+.token-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 6px 0;
+  background: var(--border);
+}
+
+.token-bar > div { height: 100%; }
+.token-bar .input { background: var(--accent); }
+.token-bar .output { background: var(--purple); }
+.token-bar .cache-create { background: var(--amber); }
+.token-bar .cache-read { background: var(--green); }
 </style>
 </head>
 <body>
 <div class="reconnect-banner" id="reconnect-banner">Disconnected — reconnecting...</div>
 <div class="tooltip" id="tooltip" style="display:none"></div>
+
+<div id="detail-drawer" class="detail-drawer">
+  <div class="drawer-header">
+    <h2 id="drawer-title">Agent Detail</h2>
+    <button class="drawer-close" id="drawer-close">&times;</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
 
 <div id="app">
   <header>
@@ -433,6 +595,7 @@ function ingestEvent(evt) {
         status: 'running',
         tools: [],
         contributesTo: [],
+        transcriptPath: evt.transcript_path || null,
       });
     }
     return;
@@ -477,6 +640,8 @@ function ingestEvent(evt) {
       startTime: evt.timestamp,
       endTime: null,
       params: evt.tool_params_summary || '',
+      toolUseId: evt.tool_use_id || null,
+      cwd: evt.cwd || null,
     });
   }
 
@@ -488,6 +653,8 @@ function ingestEvent(evt) {
       tc.endTime = evt.timestamp;
       tc.tokensIn = evt.tokens_in || 0;
       tc.tokensOut = evt.tokens_out || 0;
+      tc.hasError = !!evt.has_error;
+      tc.responseSummary = evt.tool_response_summary || '';
     }
   }
 
@@ -501,6 +668,7 @@ function ingestEvent(evt) {
       agent.status = evt.status || 'success';
       agent.contributesTo = evt.contributes_to || [];
       agent.tags = evt.task_tags || agent.tags;
+      if (evt.transcript_path) agent.transcriptPath = evt.transcript_path;
     }
   }
 
@@ -713,13 +881,21 @@ function renderTimeline() {
     agentTools.forEach(tc => {
       const tcStart = x(tc.startTime);
       const tcEnd = x(tc.endTime || now);
+      const tcColor = tc.hasError ? 'var(--red)' : color;
       g.append('rect')
         .attr('class', `tool-segment ${state.selectedAgentId && state.selectedAgentId !== agent.id ? 'dimmed' : ''}`)
         .attr('x', tcStart).attr('y', barY + 2)
         .attr('width', Math.max(tcEnd - tcStart, 1)).attr('height', barH - 4)
         .attr('rx', 2)
-        .attr('fill', color)
-        .on('mouseenter', (e) => showTooltip(e, `<span class="label">${tc.toolName}</span><br><span class="dim">${tc.params}</span>`))
+        .attr('fill', tcColor)
+        .on('mouseenter', (e) => {
+          let tip = `<span class="label">${tc.toolName}</span>`;
+          if (tc.hasError) tip += ' <span style="color:var(--red)">ERROR</span>';
+          tip += `<br><span class="dim">${tc.params}</span>`;
+          if (tc.responseSummary) tip += `<br><span class="dim">${tc.responseSummary}</span>`;
+          if (tc.cwd && tc.toolName === 'Bash') tip += `<br><span class="dim">cwd: ${tc.cwd}</span>`;
+          showTooltip(e, tip);
+        })
         .on('mouseleave', hideTooltip);
     });
 
@@ -1248,11 +1424,182 @@ function formatDuration(seconds) {
 function selectAgent(agentId) {
   if (state.selectedAgentId === agentId) {
     state.selectedAgentId = null;
+    closeDrawer();
   } else {
     state.selectedAgentId = agentId;
+    openAgentDrawer(agentId);
   }
   document.dispatchEvent(new CustomEvent('agent-select', { detail: { agentId: state.selectedAgentId } }));
   render();
+}
+
+// --- Detail drawer ---
+
+function openAgentDrawer(agentId) {
+  const agent = state.agents.get(agentId);
+  if (!agent) return;
+
+  const drawer = document.getElementById('detail-drawer');
+  const body = document.getElementById('drawer-body');
+  document.getElementById('drawer-title').textContent = `${agent.label} ${agentId.slice(-8)}`;
+  drawer.classList.add('open');
+
+  const tokens = agent.tokensIn + agent.tokensOut;
+  const cost = ((agent.tokensIn * 15 / 1_000_000) + (agent.tokensOut * 75 / 1_000_000)).toFixed(3);
+  const dur = agent.endTime ? ((agent.endTime - agent.spawnTime) / 1000).toFixed(1) + 's' : 'running';
+  const agentTools = state.toolCalls.filter(t => t.agentId === agentId);
+  const errorTools = agentTools.filter(t => t.hasError);
+
+  let html = `<div class="drawer-section"><h3>Overview</h3><div class="drawer-kv">`;
+  html += `<span class="k">Status</span><span class="v"><span class="badge ${agent.status === 'running' ? 'running' : agent.status === 'error' ? 'error' : 'success'}">${agent.status}</span></span>`;
+  html += `<span class="k">Task</span><span class="v">${esc(agent.task || '—')}</span>`;
+  html += `<span class="k">Duration</span><span class="v">${dur}</span>`;
+  html += `<span class="k">Tokens</span><span class="v">${tokens.toLocaleString()} (in: ${agent.tokensIn.toLocaleString()}, out: ${agent.tokensOut.toLocaleString()})</span>`;
+  html += `<span class="k">Cost</span><span class="v">$${cost}</span>`;
+  html += `<span class="k">Tools</span><span class="v">${agentTools.length} calls${errorTools.length ? `, ${errorTools.length} errors` : ''}</span>`;
+  html += `</div></div>`;
+
+  // Tool calls section (from local state)
+  if (agentTools.length > 0) {
+    html += `<div class="drawer-section"><h3>Tool Calls</h3><ul class="drawer-tool-list">`;
+    for (const tc of agentTools) {
+      html += `<li><span class="drawer-tool-name">${esc(tc.toolName)}</span>`;
+      if (tc.hasError) html += ` <span class="drawer-tool-error">ERROR</span>`;
+      if (tc.params) html += ` <span class="dim">${esc(tc.params)}</span>`;
+      if (tc.responseSummary) html += `<div class="drawer-tool-output">${esc(tc.responseSummary)}</div>`;
+      html += `</li>`;
+    }
+    html += `</ul></div>`;
+  }
+
+  // Transcript loading placeholder
+  html += `<div id="drawer-transcript"><div class="drawer-loading">Loading transcript...</div></div>`;
+  body.innerHTML = html;
+
+  loadTranscriptDetail(agentId, agent);
+}
+
+async function loadTranscriptDetail(agentId, agent) {
+  const container = document.getElementById('drawer-transcript');
+  if (!container) return;
+
+  let transcriptPath = agent.transcriptPath;
+
+  // For sub-agents: try to find transcript via parent's transcript
+  if (!transcriptPath && agent.parentId) {
+    const parent = state.agents.get(agent.parentId);
+    if (parent && parent.transcriptPath) {
+      try {
+        const res = await fetch(`/api/subagents?transcript=${encodeURIComponent(parent.transcriptPath)}`);
+        const subagents = await res.json();
+        const match = subagents.find(s => s.prompt && agent.task && fuzzyMatch(s.prompt, agent.task));
+        if (match) transcriptPath = match.path;
+      } catch {}
+    }
+  }
+
+  if (!transcriptPath) {
+    container.innerHTML = `<div class="drawer-section"><p class="dim" style="padding:8px 0;font-size:11px">No transcript available</p></div>`;
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/transcript?path=${encodeURIComponent(transcriptPath)}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    container.innerHTML = renderTranscriptDetail(data);
+  } catch (err) {
+    container.innerHTML = `<div class="drawer-section"><p class="dim" style="padding:8px 0;font-size:11px">Failed to load transcript: ${esc(err.message)}</p></div>`;
+  }
+}
+
+function fuzzyMatch(a, b) {
+  const al = a.toLowerCase().slice(0, 100);
+  const bl = b.toLowerCase().slice(0, 100);
+  if (al.includes(bl) || bl.includes(al)) return true;
+  const aWords = al.split(/\s+/).filter(w => w.length > 3);
+  const bWords = bl.split(/\s+/).filter(w => w.length > 3);
+  const overlap = aWords.filter(w => bWords.includes(w));
+  return overlap.length >= Math.min(2, Math.min(aWords.length, bWords.length));
+}
+
+function renderTranscriptDetail(data) {
+  let html = '';
+
+  if (data.prompt) {
+    html += `<div class="drawer-section"><h3>Prompt</h3><div class="drawer-prompt">${esc(data.prompt)}</div></div>`;
+  }
+
+  if (data.usage) {
+    const u = data.usage;
+    const total = u.input_tokens + u.output_tokens;
+    html += `<div class="drawer-section"><h3>Token Breakdown</h3>`;
+    html += `<div class="drawer-kv">`;
+    html += `<span class="k">Input</span><span class="v">${u.input_tokens.toLocaleString()}</span>`;
+    html += `<span class="k">Output</span><span class="v">${u.output_tokens.toLocaleString()}</span>`;
+    html += `<span class="k">Cache Write</span><span class="v">${u.cache_creation_input_tokens.toLocaleString()}</span>`;
+    html += `<span class="k">Cache Read</span><span class="v">${u.cache_read_input_tokens.toLocaleString()}</span>`;
+    html += `<span class="k">Cache Hit</span><span class="v">${u.cache_hit_rate}</span>`;
+    html += `</div>`;
+    if (total > 0) {
+      const ip = (u.input_tokens / total * 100).toFixed(0);
+      const op = (u.output_tokens / total * 100).toFixed(0);
+      html += `<div class="token-bar"><div class="input" style="width:${ip}%"></div><div class="output" style="width:${op}%"></div></div>`;
+      html += `<div style="font-size:10px;color:var(--text-dim)"><span style="color:var(--accent)">input</span> ${ip}% · <span style="color:var(--purple)">output</span> ${op}%</div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (data.messages && data.messages.length > 0) {
+    const toolUses = data.messages.filter(m => m.type === 'tool_use');
+    const toolResults = data.messages.filter(m => m.type === 'tool_result');
+    if (toolUses.length > 0) {
+      html += `<div class="drawer-section"><h3>Transcript Tool Calls (${toolUses.length})</h3><ul class="drawer-tool-list">`;
+      for (const tu of toolUses.slice(0, 50)) {
+        const result = toolResults.find(r => r.tool_use_id === tu.id);
+        html += `<li><span class="drawer-tool-name">${esc(tu.name)}</span>`;
+        if (result && result.is_error) html += ` <span class="drawer-tool-error">ERROR</span>`;
+        const filePath = tu.input?.file_path || tu.input?.pattern || tu.input?.command?.slice(0, 60) || '';
+        if (filePath) html += ` <span class="dim">${esc(String(filePath).slice(0, 80))}</span>`;
+        if (result && result.preview) html += `<div class="drawer-tool-output">${esc(result.preview.slice(0, 300))}</div>`;
+        html += `</li>`;
+      }
+      if (toolUses.length > 50) html += `<li class="dim">... and ${toolUses.length - 50} more</li>`;
+      html += `</ul></div>`;
+    }
+  }
+
+  if (data.files && data.files.length > 0) {
+    html += `<div class="drawer-section"><h3>Files Touched (${data.files.length})</h3><ul class="drawer-file-list">`;
+    for (const f of data.files.slice(0, 40)) {
+      const ops = f.ops.map(o => {
+        const cls = o === 'W' ? 'write' : o === 'E' ? 'edit' : 'read';
+        return `<span class="file-op ${cls}">${o}</span>`;
+      }).join('');
+      html += `<li>${ops} <span class="dim">${esc(f.path)}</span></li>`;
+    }
+    if (data.files.length > 40) html += `<li class="dim">... and ${data.files.length - 40} more</li>`;
+    html += `</ul></div>`;
+  }
+
+  if (data.errors && data.errors.length > 0) {
+    html += `<div class="drawer-section"><h3>Errors (${data.errors.length})</h3>`;
+    for (const err of data.errors.slice(0, 10)) {
+      html += `<div class="drawer-error">${esc(err.text)}</div>`;
+    }
+    if (data.errors.length > 10) html += `<p class="dim" style="font-size:11px">... and ${data.errors.length - 10} more</p>`;
+    html += `</div>`;
+  }
+
+  return html || `<div class="drawer-section"><p class="dim" style="padding:8px 0;font-size:11px">No transcript detail available</p></div>`;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function closeDrawer() {
+  document.getElementById('detail-drawer').classList.remove('open');
 }
 
 document.addEventListener('agent-select', (e) => {
@@ -1313,15 +1660,23 @@ document.querySelectorAll('.panel').forEach(panel => {
   panel.addEventListener('click', (e) => {
     if (e.target === panel || e.target.classList.contains('panel-header')) {
       state.selectedAgentId = null;
+      closeDrawer();
       render();
     }
   });
 });
 
 // Keyboard shortcuts
+document.getElementById('drawer-close').addEventListener('click', () => {
+  state.selectedAgentId = null;
+  closeDrawer();
+  render();
+});
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     state.selectedAgentId = null;
+    closeDrawer();
     render();
   }
   if (e.key === ' ' && !e.target.closest('input, select, textarea')) {

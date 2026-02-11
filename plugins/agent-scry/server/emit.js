@@ -42,6 +42,7 @@ function buildEvent(payload) {
   if (eventType === 'session_start') {
     event.agent_id = 'ag_main';
     event.agent_label = 'main';
+    event.transcript_path = payload.transcript_path || null;
     return event;
   }
 
@@ -50,6 +51,8 @@ function buildEvent(payload) {
     event.tool_params_summary = summarizeParams(toolInput);
     event.agent_id = payload.agent_id || 'ag_main';
     event.agent_label = payload.agent_label || 'main';
+    event.tool_use_id = payload.tool_use_id || null;
+    event.cwd = payload.cwd || null;
 
     if (eventType === 'tool_start' && event.tool_name === 'Task') {
       const desc = toolInput.description || toolInput.prompt || '';
@@ -74,16 +77,11 @@ function buildEvent(payload) {
       event.tokens_in = payload.tokens_in || 0;
       event.tokens_out = payload.tokens_out || 0;
       event.duration_ms = payload.duration_ms || 0;
+      const stderr = typeof resp === 'object' ? (resp.stderr || '') : '';
+      event.has_error = !!(stderr && stderr.trim());
+      const preview = stderr.trim() || (typeof resp === 'string' ? resp : (resp.stdout || resp.output || ''));
+      event.tool_response_summary = String(preview).slice(0, 80).replace(/\n/g, ' ');
     }
-    return event;
-  }
-
-  if (eventType === 'agent_spawn') {
-    event.agent_id = payload.agent_id || `ag_${hash(sessionId + now)}`;
-    event.parent_agent_id = payload.parent_agent_id || null;
-    event.agent_label = toolInput.subagent_type || payload.agent_label || 'general-purpose';
-    event.task_description = toolInput.description || payload.task_description || '';
-    event.task_tags = payload.task_tags || [];
     return event;
   }
 
@@ -99,6 +97,7 @@ function buildEvent(payload) {
     event.duration_ms = payload.duration_ms || 0;
     event.status = payload.status || 'success';
     event.contributes_to = payload.contributes_to || [];
+    event.transcript_path = payload.transcript_path || null;
     return event;
   }
 

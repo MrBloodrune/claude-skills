@@ -1,8 +1,9 @@
 import { createServer } from 'node:http';
 import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import { parseTranscript, listSubagentTranscripts } from './transcript.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
@@ -20,6 +21,7 @@ bus.setMaxListeners(100);
 let currentSessionId = null;
 let lastEventTime = Date.now();
 const startTime = Date.now();
+const agentTranscripts = new Map();
 
 function sessionPath(sid) {
   return join(SESSIONS_DIR, `${sid}.jsonl`);
@@ -47,6 +49,15 @@ function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+function isAllowedTranscriptPath(tpath) {
+  const home = process.env.HOME || '/home';
+  if (tpath.startsWith(join(home, '.claude', 'projects'))) return true;
+  for (const known of agentTranscripts.values()) {
+    if (tpath === known || tpath.startsWith(join(dirname(known)))) return true;
+  }
+  return false;
 }
 
 function json(res, status, data) {
@@ -80,6 +91,10 @@ const server = createServer(async (req, res) => {
 
     appendFileSync(sessionPath(sid), JSON.stringify(event) + '\n');
     lastEventTime = Date.now();
+    if (event.transcript_path) {
+      const key = event.agent_id || (event.event_type === 'session_start' ? 'ag_main' : null);
+      if (key) agentTranscripts.set(key, event.transcript_path);
+    }
     bus.emit('event', event);
     return json(res, 201, { ok: true, id: event.id });
   }
@@ -118,6 +133,26 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'GET' && path === '/api/health') {
     return json(res, 200, { status: 'ok', uptime: Math.floor((Date.now() - startTime) / 1000) });
+  }
+
+  if (req.method === 'GET' && path === '/api/transcript') {
+    const tpath = url.searchParams.get('path');
+    if (!tpath) return json(res, 400, { error: 'Missing path parameter' });
+    if (!isAllowedTranscriptPath(tpath)) return json(res, 403, { error: 'Path outside allowed directory' });
+    const data = parseTranscript(tpath);
+    if (!data) return json(res, 404, { error: 'Transcript not found' });
+    return json(res, 200, data);
+  }
+
+  if (req.method === 'GET' && path === '/api/subagents') {
+    const tpath = url.searchParams.get('transcript');
+    if (!tpath) return json(res, 400, { error: 'Missing transcript parameter' });
+    if (!isAllowedTranscriptPath(tpath)) return json(res, 403, { error: 'Path outside allowed directory' });
+    return json(res, 200, listSubagentTranscripts(tpath));
+  }
+
+  if (req.method === 'GET' && path === '/api/agent-transcripts') {
+    return json(res, 200, Object.fromEntries(agentTranscripts));
   }
 
   if (req.method === 'GET' && path === '/') {
