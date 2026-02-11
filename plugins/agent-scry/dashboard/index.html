@@ -517,14 +517,19 @@ header .status .dot.disconnected {
 }
 
 /* ═══ SANKEY ═══ */
-.sankey-link { fill: none; stroke-opacity: 0.35; transition: stroke-opacity 0.15s; }
-.sankey-link:hover { stroke-opacity: 0.7; }
-.sankey-link.dimmed { stroke-opacity: 0.06; }
+.sankey-link { fill: none; stroke-opacity: 0.15; transition: stroke-opacity 0.15s; }
+.sankey-link:hover { stroke-opacity: 0.35; }
+.sankey-link.dimmed { stroke-opacity: 0.03; }
 .sankey-node rect { cursor: pointer; transition: opacity 0.15s; }
-.sankey-node text { font-size: 11px; fill: var(--text-primary); font-weight: 500; }
-.sankey-node text.sankey-label-bg { stroke: var(--surface-0); stroke-width: 4; stroke-linejoin: round; fill: var(--surface-0); }
+.sankey-node text {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  fill: white; font-weight: 400; pointer-events: none;
+}
 .sankey-node:hover rect { stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
-.sankey-node:hover text { fill: #fff; }
+.sankey-col-header {
+  font-family: 'DM Sans', sans-serif; font-size: 9px;
+  fill: rgba(255,255,255,0.35); text-anchor: middle;
+}
 
 /* ═══ TIMELINE ═══ */
 .timeline-bar { cursor: pointer; }
@@ -937,7 +942,7 @@ header .status .dot.disconnected {
   </div>
 
   <div class="panel" id="sankey-panel">
-    <div class="panel-header">Sankey Flow</div>
+    <div class="panel-header">Flow</div>
     <div class="empty-state" id="sankey-empty">Waiting for events...</div>
     <svg id="sankey-svg"></svg>
   </div>
@@ -1870,14 +1875,18 @@ function renderSankey() {
   const headerH = container.querySelector('.panel-header').offsetHeight;
   const width = container.clientWidth;
   const height = container.clientHeight - headerH;
-  const margin = { top: 12, right: 16, bottom: 28, left: 12 };
+  const margin = { top: 24, right: 100, bottom: 28, left: 60 };
 
   svg.attr('width', width).attr('height', height);
   svg.selectAll('*').remove();
 
   const agents = [...state.agents.values()];
   const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0) || 1;
-  const hasTasks = state.tasks.size > 0;
+
+  const agentColors = {
+    main: '#9ca3af', Explore: '#60a5fa', Plan: '#a78bfa',
+    Bash: '#22c55e', 'general-purpose': '#eab308',
+  };
 
   const nodeMap = new Map();
   const links = [];
@@ -1886,52 +1895,46 @@ function renderSankey() {
   const promptId = 'prompt_root';
   nodeMap.set(promptId, { id: promptId, name: 'Root Prompt', column: 0 });
 
-  // Column 1: Decomposition — use tasks if available, else agent descriptions
-  const decomps = new Map();
+  // Column 1: Phase grouping — group sub-agents by label
   const subAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
+  const phaseMap = new Map();
+  const phaseNames = {
+    'Explore': 'Explore codebase',
+    'Plan': 'Plan architecture',
+    'general-purpose': 'Implement features',
+    'Bash': 'Run commands',
+    'feature-dev:code-explorer': 'Explore codebase',
+    'feature-dev:code-architect': 'Plan architecture',
+    'feature-dev:code-reviewer': 'Review code',
+  };
 
-  if (hasTasks) {
-    for (const [id, task] of state.tasks) {
-      const key = `task_${id}`;
-      decomps.set(key, {
-        id: key, name: task.subject.slice(0, 40) || `Task ${id}`,
-        column: 1, tokens: 0, taskStatus: task.status, taskId: id,
+  subAgents.forEach(a => {
+    const key = a.label || 'unknown';
+    if (!phaseMap.has(key)) {
+      phaseMap.set(key, {
+        id: `phase_${key}`,
+        name: phaseNames[key] || key,
+        column: 1,
+        tokens: 0,
+        agents: [],
+        color: agentColors[key] || '#9ca3af',
       });
     }
-    // Accumulate tokens per task by matching agents
-    subAgents.forEach(a => {
-      const matchedTask = findTaskForAgent(a);
-      if (matchedTask) {
-        const key = `task_${matchedTask.id}`;
-        if (decomps.has(key)) decomps.get(key).tokens += a.tokensIn + a.tokensOut;
-      }
-    });
-    // Ensure unmatched agents still show
-    subAgents.forEach(a => {
-      const matchedTask = findTaskForAgent(a);
-      if (!matchedTask) {
-        const key = `decomp_${a.id}`;
-        decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: a.tokensIn + a.tokensOut });
-      }
-    });
-  } else {
-    subAgents.forEach(a => {
-      const key = `decomp_${a.task.slice(0, 50) || a.id}`;
-      if (!decomps.has(key)) decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: 0 });
-      decomps.get(key).tokens += a.tokensIn + a.tokensOut;
-    });
-  }
-
-  if (decomps.size === 0) {
-    decomps.set('decomp_main', { id: 'decomp_main', name: 'Main Task', column: 1, tokens: totalTokens });
-  }
-
-  decomps.forEach((v, k) => nodeMap.set(k, v));
-  decomps.forEach((d, key) => {
-    links.push({ source: promptId, target: key, value: Math.max(d.tokens || 1, 1) });
+    const phase = phaseMap.get(key);
+    phase.tokens += a.tokensIn + a.tokensOut;
+    phase.agents.push(a);
   });
 
-  // Column 2: Agent nodes
+  if (phaseMap.size === 0) {
+    phaseMap.set('unknown', { id: 'phase_unknown', name: 'Main Task', column: 1, tokens: totalTokens, agents: [], color: '#9ca3af' });
+  }
+
+  phaseMap.forEach((v, k) => nodeMap.set(v.id, v));
+  phaseMap.forEach(phase => {
+    links.push({ source: promptId, target: phase.id, value: Math.max(phase.tokens || 1, 1) });
+  });
+
+  // Column 2: Agent nodes — short IDs only
   const threshold = totalTokens * 0.05;
   let agentList = subAgents;
   let otherTokens = 0;
@@ -1946,76 +1949,93 @@ function renderSankey() {
     if (otherTokens > 0) {
       const otherId = 'ag_other';
       nodeMap.set(otherId, { id: otherId, name: 'Other', column: 2, tokens: otherTokens, status: 'success', label: 'other' });
-      decomps.forEach((d, key) => {
-        links.push({ source: key, target: otherId, value: Math.max(otherTokens / decomps.size, 1) });
+      phaseMap.forEach(phase => {
+        links.push({ source: phase.id, target: otherId, value: Math.max(otherTokens / phaseMap.size, 1) });
       });
     }
   }
 
   agentList.forEach(a => {
     const tokens = a.tokensIn + a.tokensOut;
-    nodeMap.set(a.id, { id: a.id, name: `${a.label} ${a.id.slice(-6)}`, column: 2, tokens, status: a.status, label: a.label });
+    nodeMap.set(a.id, { id: a.id, name: a.id.slice(-6), column: 2, tokens, status: a.status, label: a.label });
   });
 
-  // Links: decomposition → agents
+  // Links: phase → agents (matched by label)
   agentList.forEach(a => {
     const tokens = a.tokensIn + a.tokensOut;
-    let decompKey = null;
-    if (hasTasks) {
-      const matchedTask = findTaskForAgent(a);
-      if (matchedTask) decompKey = `task_${matchedTask.id}`;
-      else decompKey = `decomp_${a.id}`;
-    } else {
-      decompKey = `decomp_${a.task.slice(0, 50) || a.id}`;
-    }
-    if (decompKey && nodeMap.has(decompKey)) {
-      links.push({ source: decompKey, target: a.id, value: Math.max(tokens, 1) });
+    const key = a.label || 'unknown';
+    const phase = phaseMap.get(key);
+    if (phase) {
+      links.push({ source: phase.id, target: a.id, value: Math.max(tokens, 1) });
     }
   });
 
-  // Column 3: Outcomes
+  // Column 3: File operation outcomes
   const outcomeMap = new Map();
-  const completedSubs = agentList.filter(a => a.status !== 'running');
+  const outcomes = { read: 0, written: 0, errors: 0 };
+  const agentOutcomes = new Map(); // agentId → { read, written, errors }
 
-  if (completedSubs.length > 0) {
-    const clusters = [];
-    completedSubs.forEach(a => {
-      let matched = false;
-      for (const cluster of clusters) {
-        const overlap = cluster.tags.filter(t => a.tags.includes(t));
-        if (overlap.length >= 2) {
-          cluster.agents.push(a);
-          a.tags.forEach(t => { if (!cluster.tags.includes(t)) cluster.tags.push(t); });
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) clusters.push({ tags: [...a.tags], agents: [a] });
+  agentList.forEach(a => {
+    const ao = { read: 0, written: 0, errors: 0 };
+    const tools = state.toolCalls.filter(t => t.agentId === a.id);
+    tools.forEach(tc => {
+      if (tc.hasError) { ao.errors++; outcomes.errors++; }
+      else if (['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'].includes(tc.toolName)) { ao.read++; outcomes.read++; }
+      else if (['Write', 'Edit', 'NotebookEdit'].includes(tc.toolName)) { ao.written++; outcomes.written++; }
     });
+    agentOutcomes.set(a.id, ao);
+  });
 
-    clusters.forEach((cluster, i) => {
-      const hasError = cluster.agents.some(a => a.status === 'error');
-      const allError = cluster.agents.every(a => a.status === 'error');
-      const status = allError ? 'error' : hasError ? 'partial' : 'success';
-      const label = cluster.tags[0] || (allError ? 'Failed' : 'Completed');
-      const key = `outcome_${i}`;
-      outcomeMap.set(key, { id: key, name: label, column: 3, status });
-      cluster.agents.forEach(a => {
-        links.push({ source: a.id, target: key, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: a.status });
-      });
-    });
-  }
-
+  // Running agents that haven't finished get an "in progress" outcome
   const runningSubs = agentList.filter(a => a.status === 'running');
-  if (runningSubs.length > 0) {
-    const key = 'outcome_running';
-    outcomeMap.set(key, { id: key, name: 'In Progress', column: 3, status: 'running' });
-    runningSubs.forEach(a => {
-      links.push({ source: a.id, target: key, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: 'running' });
-    });
+  const hasRunning = runningSubs.length > 0;
+
+  if (outcomes.read > 0)
+    outcomeMap.set('out_read', { id: 'out_read', name: `${outcomes.read} files read`, column: 3, status: 'success' });
+  if (outcomes.written > 0)
+    outcomeMap.set('out_written', { id: 'out_written', name: `${outcomes.written} files written`, column: 3, status: 'success' });
+  if (outcomes.errors > 0)
+    outcomeMap.set('out_errors', { id: 'out_errors', name: `${outcomes.errors} errors`, column: 3, status: 'error' });
+  if (hasRunning)
+    outcomeMap.set('out_running', { id: 'out_running', name: 'In Progress', column: 3, status: 'running' });
+
+  // Fallback: if no file ops yet, create a generic outcome
+  if (outcomeMap.size === 0) {
+    const completed = agentList.filter(a => a.status !== 'running');
+    if (completed.length > 0)
+      outcomeMap.set('out_done', { id: 'out_done', name: 'Completed', column: 3, status: 'success' });
+    else
+      outcomeMap.set('out_running', { id: 'out_running', name: 'In Progress', column: 3, status: 'running' });
   }
 
   outcomeMap.forEach((v, k) => nodeMap.set(k, v));
+
+  // Links: agents → outcomes
+  agentList.forEach(a => {
+    const ao = agentOutcomes.get(a.id);
+    if (a.status === 'running' && outcomeMap.has('out_running')) {
+      links.push({ source: a.id, target: 'out_running', value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: 'running' });
+      return;
+    }
+    let linked = false;
+    if (ao.read > 0 && outcomeMap.has('out_read')) {
+      links.push({ source: a.id, target: 'out_read', value: ao.read, agentStatus: a.status });
+      linked = true;
+    }
+    if (ao.written > 0 && outcomeMap.has('out_written')) {
+      links.push({ source: a.id, target: 'out_written', value: ao.written, agentStatus: a.status });
+      linked = true;
+    }
+    if (ao.errors > 0 && outcomeMap.has('out_errors')) {
+      links.push({ source: a.id, target: 'out_errors', value: ao.errors, agentStatus: a.status });
+      linked = true;
+    }
+    // Fallback if agent had no categorized tool calls
+    if (!linked) {
+      const fallbackKey = outcomeMap.has('out_done') ? 'out_done' : outcomeMap.has('out_running') ? 'out_running' : outcomeMap.keys().next().value;
+      if (fallbackKey) links.push({ source: a.id, target: fallbackKey, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: a.status });
+    }
+  });
 
   const nodes = [...nodeMap.values()];
   const nodeIndex = new Map(nodes.map((n, i) => [n.id, i]));
@@ -2040,28 +2060,55 @@ function renderSankey() {
       links: sankeyLinks,
     });
 
-    const g = svg.append('g');
+    // Per-column rect widths
+    const colWidths = { 0: 120, 1: 130, 2: 60, 3: 110 };
 
-    const statusColor = (l) => {
-      if (l.agentStatus === 'error') return 'var(--red)';
-      if (l.agentStatus === 'running') return 'var(--accent)';
-      const src = typeof l.source === 'object' ? l.source : nodes[l.source];
-      const tgt = typeof l.target === 'object' ? l.target : nodes[l.target];
-      if (src && src.status === 'error') return 'var(--red)';
-      if (tgt && tgt.status === 'error') return 'var(--red)';
-      if (src && src.status === 'running') return 'var(--accent)';
-      if (tgt && tgt.status === 'running') return 'var(--accent)';
-      if (tgt && tgt.status === 'partial') return 'var(--amber)';
-      return 'var(--green)';
+    const nodeColor = (d) => {
+      if (d.column === 0) return 'var(--accent)';
+      if (d.column === 1) return d.color || 'var(--text-dim)';
+      if (d.column === 3) {
+        if (d.status === 'error') return 'var(--red)';
+        if (d.status === 'running') return 'var(--accent)';
+        if (d.id === 'out_read') return '#60a5fa';
+        if (d.id === 'out_written') return 'var(--green)';
+        return 'var(--green)';
+      }
+      if (d.label) {
+        const colors = { main: '#9ca3af', Explore: '#60a5fa', Plan: '#a78bfa', Bash: '#22c55e', 'general-purpose': '#eab308' };
+        return colors[d.label] || '#9ca3af';
+      }
+      return 'var(--text-dim)';
     };
 
+    // Gradient defs for links
+    const defs = svg.append('defs');
+    sLinks.forEach((link, i) => {
+      const grad = defs.append('linearGradient')
+        .attr('id', `sg-${i}`).attr('x1', 0).attr('y1', 0).attr('x2', 1).attr('y2', 0);
+      grad.append('stop').attr('offset', '0%').attr('stop-color', nodeColor(link.source));
+      grad.append('stop').attr('offset', '100%').attr('stop-color', nodeColor(link.target));
+    });
+
+    const g = svg.append('g');
+
+    // Column headers
+    const headers = ['SOURCE', 'DECOMPOSITION', 'AGENTS', 'OUTCOMES'];
+    headers.forEach((label, col) => {
+      const colNodes = sNodes.filter(n => n.column === col);
+      if (!colNodes.length) return;
+      const cx = d3.mean(colNodes, n => (n.x0 + n.x1) / 2);
+      g.append('text').attr('class', 'sankey-col-header')
+        .attr('x', cx).attr('y', margin.top - 6).text(label);
+    });
+
+    // Links with gradient strokes
     g.selectAll('.sankey-link')
       .data(sLinks)
       .join('path')
       .attr('class', d => {
         let cls = 'sankey-link';
-        const src = typeof d.source === 'object' ? d.source : nodes[d.source];
-        const tgt = typeof d.target === 'object' ? d.target : nodes[d.target];
+        const src = d.source;
+        const tgt = d.target;
         if ((tgt && tgt.status === 'running') || (src && src.status === 'running')) cls += ' in-progress';
         if (state.selectedAgentId) {
           if (src.id !== state.selectedAgentId && tgt.id !== state.selectedAgentId) cls += ' dimmed';
@@ -2076,45 +2123,26 @@ function renderSankey() {
         return cls;
       })
       .attr('d', d3.sankeyLinkHorizontal())
-      .attr('stroke', d => statusColor(d))
+      .attr('stroke', (d, i) => `url(#sg-${i})`)
       .attr('stroke-width', d => Math.max(d.width, 1))
       .on('mouseenter', (e, d) => {
-        const src = typeof d.source === 'object' ? d.source : nodes[d.source];
-        const tgt = typeof d.target === 'object' ? d.target : nodes[d.target];
-        showTooltip(e, `${src.name} → ${tgt.name}<br>Tokens: ${d.value.toLocaleString()}`);
+        showTooltip(e, `${d.source.name} → ${d.target.name}<br>Tokens: ${d.value.toLocaleString()}`);
       })
       .on('mouseleave', hideTooltip);
 
+    // Node groups — translate to wide rect center
     const node = g.selectAll('.sankey-node')
       .data(sNodes)
       .join('g')
       .attr('class', 'sankey-node')
       .attr('transform', d => `translate(${d.x0},${d.y0})`);
 
-    const nodeColor = (d) => {
-      if (d.column === 0) return 'var(--accent)';
-      if (d.column === 1 && d.taskStatus) {
-        if (d.taskStatus === 'error') return 'var(--red)';
-        if (d.taskStatus === 'completed') return 'var(--green)';
-        if (d.taskStatus === 'in_progress') return 'var(--accent)';
-        return 'var(--text-dim)';
-      }
-      if (d.column === 3) {
-        if (d.status === 'error') return 'var(--red)';
-        if (d.status === 'partial') return 'var(--amber)';
-        if (d.status === 'running') return 'var(--accent)';
-        return 'var(--green)';
-      }
-      if (d.label) {
-        const colors = { main: '#9ca3af', Explore: '#60a5fa', Plan: '#a78bfa', Bash: '#22c55e', 'general-purpose': '#eab308' };
-        return colors[d.label] || '#9ca3af';
-      }
-      return 'var(--text-dim)';
-    };
-
+    // Wide colored rects per column
     node.append('rect')
-      .attr('width', d => d.x1 - d.x0)
-      .attr('height', d => Math.max(d.y1 - d.y0, 1))
+      .attr('x', d => -(colWidths[d.column] - (d.x1 - d.x0)) / 2)
+      .attr('width', d => colWidths[d.column] || 12)
+      .attr('height', d => Math.max(d.y1 - d.y0, 20))
+      .attr('rx', 4)
       .attr('fill', nodeColor)
       .attr('opacity', d => {
         if (state.selectedAgentId && d.id !== state.selectedAgentId && d.column === 2) return 0.3;
@@ -2124,39 +2152,20 @@ function renderSankey() {
         }
         return 0.8;
       })
-      .attr('rx', 2)
       .on('click', (e, d) => {
         if (d.column === 2) selectAgent(d.id);
       });
 
+    // Labels centered inside rects
     node.append('text')
-      .attr('class', 'sankey-label-bg')
-      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
-      .attr('y', d => (d.y1 - d.y0) / 2)
+      .attr('x', d => (colWidths[d.column] - (d.x1 - d.x0)) / 2)
+      .attr('y', d => Math.max(d.y1 - d.y0, 20) / 2)
       .attr('dy', '0.35em')
-      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
-      .text(d => d.name.length > 30 ? d.name.slice(0, 28) + '\u2026' : d.name);
-
-    node.append('text')
-      .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
-      .attr('y', d => (d.y1 - d.y0) / 2)
-      .attr('dy', '0.35em')
-      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
-      .attr('fill', d => {
-        if (d.column === 0) return 'var(--accent)';
-        if (d.column === 1 && d.taskStatus) {
-          if (d.taskStatus === 'error') return 'var(--red)';
-          if (d.taskStatus === 'completed') return 'var(--green)';
-          return 'var(--text-primary)';
-        }
-        if (d.column === 3) {
-          if (d.status === 'error') return 'var(--red)';
-          if (d.status === 'running') return 'var(--accent)';
-          return 'var(--green)';
-        }
-        return 'var(--text-primary)';
-      })
-      .text(d => d.name.length > 30 ? d.name.slice(0, 28) + '\u2026' : d.name);
+      .attr('text-anchor', 'middle')
+      .text(d => {
+        const maxLen = { 0: 16, 1: 18, 2: 8, 3: 18 }[d.column] || 16;
+        return d.name.length > maxLen ? d.name.slice(0, maxLen - 1) + '\u2026' : d.name;
+      });
 
   } catch (e) {
     console.warn('Sankey render error:', e);
