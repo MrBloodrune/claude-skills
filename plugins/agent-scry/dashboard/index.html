@@ -10,17 +10,24 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0a0a0a;
-  --card: #1a1a1a;
-  --border: #2a2a2a;
-  --text: #e0e0e0;
-  --text-dim: #888;
-  --accent: #4a9eff;
-  --green: #22c55e;
-  --red: #ef4444;
-  --amber: #f59e0b;
-  --purple: #a855f7;
+  --bg: #0b0d1a;
+  --card: rgba(17, 20, 40, 0.85);
+  --card-solid: #111428;
+  --border: rgba(129, 140, 248, 0.1);
+  --border-strong: rgba(129, 140, 248, 0.2);
+  --text: #e0e0f0;
+  --text-dim: #6b7094;
+  --accent: #818cf8;
+  --accent-glow: rgba(129, 140, 248, 0.15);
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --purple: #a78bfa;
   --main-gray: #9ca3af;
+  --glass-bg: rgba(17, 20, 40, 0.7);
+  --glass-blur: 12px;
+  --glow-sm: 0 0 8px rgba(129, 140, 248, 0.15);
+  --glow-md: 0 0 16px rgba(129, 140, 248, 0.12);
 }
 
 html, body {
@@ -34,26 +41,40 @@ html, body {
 
 #app {
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas:
+    "header    header"
+    "stats     stats"
+    "timeline  sidebar"
+    "sankey    sidebar"
+    "infobar   infobar";
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: auto auto 1fr auto auto;
   height: 100vh;
   gap: 1px;
   background: var(--border);
 }
 
+/* ═══ HEADER ═══ */
 header {
+  grid-area: header;
   background: var(--card);
-  padding: 8px 16px;
+  backdrop-filter: blur(var(--glass-blur));
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 header h1 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.5px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 header .controls {
@@ -75,42 +96,66 @@ header .status .dot {
   height: 6px;
   border-radius: 50%;
   background: var(--green);
+  box-shadow: 0 0 6px var(--green);
 }
 
 header .status .dot.disconnected {
   background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+}
+
+.header-btn {
+  background: rgba(129, 140, 248, 0.1);
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.header-btn:hover {
+  background: rgba(129, 140, 248, 0.2);
+  box-shadow: var(--glow-sm);
 }
 
 #session-select {
-  background: var(--card);
+  background: var(--card-solid);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   padding: 4px 8px;
   font-family: inherit;
   font-size: 11px;
   border-radius: 4px;
 }
 
+/* ═══ GLASS PANELS ═══ */
 .panel {
-  background: var(--bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--border);
 }
 
 .panel-header {
   padding: 8px 16px;
-  background: var(--card);
-  font-size: 11px;
-  font-weight: 600;
+  background: rgba(17, 20, 40, 0.6);
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
 }
 
-#timeline-panel { overflow-y: auto; max-height: 50vh; }
+#timeline-panel { grid-area: timeline; overflow-y: auto; }
 #timeline-panel svg { width: 100%; }
-#sankey-panel { overflow: auto; }
+#sankey-panel { grid-area: sankey; overflow: auto; }
 #sankey-panel svg { width: 100%; height: 100%; }
 
 .empty-state {
@@ -120,13 +165,14 @@ header .status .dot.disconnected {
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
   animation: pulse 2s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
 }
 
 .reconnect-banner {
@@ -134,7 +180,7 @@ header .status .dot.disconnected {
   top: 0;
   left: 0;
   right: 0;
-  background: var(--red);
+  background: linear-gradient(90deg, var(--red), #dc2626);
   color: white;
   text-align: center;
   padding: 6px;
@@ -145,8 +191,8 @@ header .status .dot.disconnected {
 
 .tooltip {
   position: absolute;
-  background: #222;
-  border: 1px solid var(--border);
+  background: rgba(17, 20, 40, 0.95);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 11px;
@@ -154,16 +200,17 @@ header .status .dot.disconnected {
   z-index: 100;
   max-width: 300px;
   line-height: 1.5;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5), var(--glow-sm);
+  backdrop-filter: blur(8px);
 }
 
 .tooltip .label { color: var(--accent); font-weight: 600; }
 .tooltip .dim { color: var(--text-dim); }
 
-/* Stats panel — compact top bar */
+/* ═══ STATS BAR ═══ */
 #stats-panel {
+  grid-area: stats;
   display: flex;
-  flex-direction: column;
   overflow: hidden;
   background: var(--card);
 }
@@ -172,79 +219,113 @@ header .status .dot.disconnected {
   display: flex;
   gap: 1px;
   background: var(--border);
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .stat-card {
   flex: 1;
   background: var(--card);
-  padding: 8px 14px;
+  padding: 10px 16px;
   min-width: 0;
 }
 
 .stat-card .title {
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--text-dim);
   margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .stat-card .value {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text);
+  text-shadow: 0 0 20px var(--accent-glow);
 }
 
 .stat-card .secondary {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-dim);
   margin-top: 2px;
 }
 
 .stat-card .sparkline {
   margin-top: 6px;
-  height: 24px;
+  height: 20px;
 }
 
 .stat-card .sparkline path {
   fill: none;
   stroke: var(--accent);
   stroke-width: 1.5;
+  opacity: 0.6;
 }
 
 .progress-bar {
-  height: 4px;
-  background: var(--border);
+  height: 3px;
+  background: rgba(129, 140, 248, 0.1);
   border-radius: 2px;
-  margin-top: 6px;
+  margin-top: 8px;
   overflow: hidden;
 }
 
 .progress-bar .fill {
   height: 100%;
-  background: var(--green);
+  background: linear-gradient(90deg, var(--accent), var(--green));
   border-radius: 2px;
   transition: width 0.3s ease;
 }
 
-.agent-table-wrap {
-  flex: 1;
-  overflow: auto;
-  background: var(--bg);
-  max-height: 200px;
+/* ═══ SIDEBAR ═══ */
+#sidebar-panel {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border-left: 1px solid var(--border-strong);
+  overflow: hidden;
 }
 
-.agent-table-toggle {
-  padding: 6px 16px;
-  font-size: 11px;
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: rgba(17, 20, 40, 0.6);
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   color: var(--text-dim);
   cursor: pointer;
-  background: var(--card);
-  border-top: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
   user-select: none;
 }
 
+.sidebar-tab:hover { color: var(--text); }
+.sidebar-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar-pane { display: none; height: 100%; overflow-y: auto; }
+.sidebar-pane.active { display: block; }
+
+/* Agent table in sidebar */
 .agent-table {
   width: 100%;
   border-collapse: collapse;
@@ -254,10 +335,13 @@ header .status .dot.disconnected {
 .agent-table th {
   position: sticky;
   top: 0;
-  background: var(--card);
-  padding: 6px 12px;
+  background: var(--card-solid);
+  padding: 6px 10px;
   text-align: left;
   font-weight: 600;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--text-dim);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
@@ -268,48 +352,139 @@ header .status .dot.disconnected {
 .agent-table th:hover { color: var(--text); }
 
 .agent-table td {
-  padding: 5px 12px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 160px;
 }
 
-.agent-table tr:hover { background: #1a1a1a; }
-.agent-table tr.selected { background: #1a2a3a; }
+.agent-table tr:hover { background: rgba(129, 140, 248, 0.05); }
+.agent-table tr.selected { background: rgba(129, 140, 248, 0.12); }
+
+.agent-task-desc {
+  display: block;
+  font-size: 9px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
 
 .badge {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
-.badge.running { background: rgba(74,158,255,0.2); color: var(--accent); }
-.badge.success { background: rgba(34,197,94,0.2); color: var(--green); }
-.badge.error { background: rgba(239,68,68,0.2); color: var(--red); }
+.badge.running { background: rgba(129, 140, 248, 0.15); color: var(--accent); }
+.badge.success { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+.badge.error { background: rgba(248, 113, 113, 0.15); color: var(--red); }
 
-/* Sankey styles */
+/* Task list in sidebar */
+.task-list { list-style: none; padding: 8px; }
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.task-item:hover { background: rgba(129, 140, 248, 0.06); border-color: var(--border); }
+
+.task-status-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  margin-top: 1px;
+}
+
+.task-status-icon.pending { border: 1.5px solid var(--text-dim); color: var(--text-dim); }
+.task-status-icon.in_progress { border: 1.5px solid var(--accent); color: var(--accent); animation: pulse 1.5s infinite; }
+.task-status-icon.completed { background: var(--green); color: var(--bg); }
+.task-status-icon.error { background: var(--red); color: var(--bg); }
+
+.task-info { flex: 1; min-width: 0; }
+.task-subject { font-size: 11px; color: var(--text); font-weight: 500; }
+.task-desc { font-size: 9px; color: var(--text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-owner { font-size: 9px; color: var(--accent); margin-top: 2px; }
+
+/* Plan panel in sidebar */
+.plan-panel { padding: 16px; }
+.plan-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.plan-status-badge.active { background: rgba(167, 139, 250, 0.15); color: var(--purple); }
+.plan-status-badge.inactive { background: rgba(107, 112, 148, 0.1); color: var(--text-dim); }
+
+.plan-content {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.plan-empty {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+  padding: 32px 16px;
+}
+
+/* ═══ SANKEY ═══ */
 .sankey-link { fill: none; stroke-opacity: 0.35; transition: stroke-opacity 0.15s; }
 .sankey-link:hover { stroke-opacity: 0.7; }
 .sankey-link.dimmed { stroke-opacity: 0.06; }
 .sankey-node rect { cursor: pointer; transition: opacity 0.15s; }
 .sankey-node text { font-size: 11px; fill: var(--text); font-weight: 500; }
 .sankey-node text.sankey-label-bg { stroke: var(--bg); stroke-width: 4; stroke-linejoin: round; fill: var(--bg); }
-.sankey-node:hover rect { stroke: rgba(255,255,255,0.6); stroke-width: 1.5; }
+.sankey-node:hover rect { stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
 .sankey-node:hover text { fill: #fff; }
 
-/* Timeline styles */
+/* ═══ TIMELINE ═══ */
 .timeline-bar { cursor: pointer; }
 .timeline-bar:hover { filter: brightness(1.2); }
 .timeline-bar.dimmed { opacity: 0.2; }
-.connector-line { stroke: var(--text-dim); stroke-dasharray: 3,3; stroke-width: 1; opacity: 0.4; }
-.tool-segment { cursor: pointer; stroke: var(--bg); stroke-width: 2; }
-.tool-segment:hover { filter: brightness(1.3) drop-shadow(0 0 3px currentColor); stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
+.connector-line { stroke: var(--text-dim); stroke-dasharray: 3,3; stroke-width: 1; opacity: 0.3; }
+.tool-segment { cursor: pointer; stroke: rgba(0,0,0,0.3); stroke-width: 1; }
+.tool-segment:hover { filter: brightness(1.3) drop-shadow(0 0 4px currentColor); stroke: rgba(255,255,255,0.3); stroke-width: 1.5; }
 .tool-segment.dimmed { opacity: 0.12; }
 .tool-label { font-size: 9px; fill: rgba(255,255,255,0.9); pointer-events: none; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
+
+.plan-mode-region { fill: rgba(167, 139, 250, 0.06); stroke: rgba(167, 139, 250, 0.2); stroke-dasharray: 4,4; }
+.plan-mode-label { font-size: 9px; fill: var(--purple); font-weight: 600; letter-spacing: 1px; opacity: 0.7; }
+
+.hover-line { stroke: rgba(129, 140, 248, 0.4); stroke-width: 1; stroke-dasharray: 3,3; pointer-events: none; }
+.hover-label { font-size: 9px; fill: var(--accent); pointer-events: none; }
 
 @keyframes dash {
   to { stroke-dashoffset: -20; }
@@ -320,20 +495,20 @@ header .status .dot.disconnected {
   animation: dash 1s linear infinite;
 }
 
-/* Detail drawer */
+/* ═══ DETAIL DRAWER ═══ */
 .detail-drawer {
   position: fixed;
   top: 0;
   right: -440px;
   width: 420px;
   height: 100vh;
-  background: var(--card);
-  border-left: 1px solid var(--border);
+  background: var(--card-solid);
+  border-left: 1px solid var(--border-strong);
   z-index: 200;
   display: flex;
   flex-direction: column;
   transition: right 0.25s ease;
-  box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+  box-shadow: -4px 0 32px rgba(0,0,0,0.6);
 }
 
 .detail-drawer.open { right: 0; }
@@ -378,12 +553,12 @@ header .status .dot.disconnected {
 }
 
 .drawer-section h3 {
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--text-dim);
   margin-bottom: 8px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .drawer-kv {
@@ -404,20 +579,14 @@ header .status .dot.disconnected {
   max-height: 200px;
   overflow-y: auto;
   color: var(--text);
-  background: var(--bg);
+  background: rgba(0,0,0,0.2);
   padding: 8px;
   border-radius: 4px;
 }
 
 .drawer-tool-list { list-style: none; font-size: 11px; }
-
-.drawer-tool-list li {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-}
-
+.drawer-tool-list li { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .drawer-tool-list li:last-child { border-bottom: none; }
-
 .drawer-tool-name { color: var(--accent); font-weight: 600; }
 .drawer-tool-error { color: var(--red); }
 .drawer-tool-output {
@@ -426,7 +595,7 @@ header .status .dot.disconnected {
   white-space: pre-wrap;
   max-height: 80px;
   overflow-y: auto;
-  background: var(--bg);
+  background: rgba(0,0,0,0.2);
   padding: 4px 6px;
   border-radius: 3px;
   margin-top: 4px;
@@ -440,8 +609,8 @@ header .status .dot.disconnected {
 .file-op.edit { color: var(--amber); }
 
 .drawer-error {
-  background: rgba(239,68,68,0.1);
-  border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.2);
   border-radius: 4px;
   padding: 6px 8px;
   margin-bottom: 6px;
@@ -461,11 +630,11 @@ header .status .dot.disconnected {
 
 .token-bar {
   display: flex;
-  height: 8px;
-  border-radius: 4px;
+  height: 6px;
+  border-radius: 3px;
   overflow: hidden;
   margin: 6px 0;
-  background: var(--border);
+  background: rgba(129, 140, 248, 0.08);
 }
 
 .token-bar > div { height: 100%; }
@@ -473,6 +642,148 @@ header .status .dot.disconnected {
 .token-bar .output { background: var(--purple); }
 .token-bar .cache-create { background: var(--amber); }
 .token-bar .cache-read { background: var(--green); }
+
+/* ═══ INFO BAR ═══ */
+#info-bar {
+  grid-area: infobar;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 5px 16px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.info-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.info-badge.plan-mode {
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--purple);
+  display: none;
+}
+
+.info-badge.plan-mode.visible { display: inline-flex; }
+
+.info-badge.error-count {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--red);
+  display: none;
+}
+
+.info-badge.error-count.visible { display: inline-flex; }
+
+.info-badge.tasks-count {
+  background: rgba(129, 140, 248, 0.08);
+  color: var(--accent);
+}
+
+.info-badge.compaction-count {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--amber);
+  display: none;
+}
+
+.info-badge.compaction-count.visible { display: inline-flex; }
+
+/* ═══ EVENTS TAB ═══ */
+.event-log-controls {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.event-log-controls input, .event-log-controls select {
+  background: var(--card-solid);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+.event-log-controls input { flex: 1; }
+
+.event-log-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 10px;
+}
+
+.event-log-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.event-log-item:hover { background: rgba(129, 140, 248, 0.06); }
+.event-log-item.highlighted { background: rgba(129, 140, 248, 0.15); border-left: 2px solid var(--accent); }
+
+.event-log-time { color: var(--text-dim); font-size: 9px; white-space: nowrap; min-width: 40px; }
+.event-log-type { font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 2px; white-space: nowrap; }
+.event-log-type.tool_start { background: rgba(129, 140, 248, 0.12); color: var(--accent); }
+.event-log-type.tool_end { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+.event-log-type.agent_complete { background: rgba(167, 139, 250, 0.12); color: var(--purple); }
+.event-log-type.compaction { background: rgba(251, 191, 36, 0.12); color: var(--amber); }
+.event-log-type.session_start, .event-log-type.session_end { background: rgba(107, 112, 148, 0.1); color: var(--text-dim); }
+.event-log-type.agent_spawn { background: rgba(249, 115, 22, 0.12); color: #f97316; }
+.event-log-agent { color: var(--text-dim); white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis; }
+.event-log-detail { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ═══ COMPACTION MARKERS ═══ */
+.compaction-marker { stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 5,3; cursor: pointer; }
+.compaction-marker:hover { stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--amber)); }
+.compaction-label { font-size: 9px; fill: var(--amber); font-weight: 700; cursor: pointer; }
+.session-end-marker { stroke: rgba(255,255,255,0.4); stroke-width: 1; }
+.session-end-label { font-size: 9px; fill: var(--text-dim); }
+
+/* ═══ HIGHLIGHT LINE ═══ */
+.highlight-line { stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.highlight-label { font-size: 9px; fill: var(--accent); font-weight: 700; pointer-events: none; }
+
+/* ═══ COMPACTION EPOCH ═══ */
+.compaction-epoch { fill: rgba(251, 191, 36, 0.03); }
+
+/* ═══ PLAN CYCLES ═══ */
+.plan-cycle-card {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.plan-cycle-card:hover { border-color: var(--purple); background: rgba(167, 139, 250, 0.06); }
+.plan-cycle-card.highlighted { border-color: var(--purple); background: rgba(167, 139, 250, 0.1); box-shadow: 0 0 8px rgba(167, 139, 250, 0.15); }
+
+.plan-cycle-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.plan-cycle-num { font-size: 12px; font-weight: 700; color: var(--purple); }
+.plan-write-dot { fill: var(--purple); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -491,6 +802,7 @@ header .status .dot.disconnected {
   <header>
     <h1>AGENT SCRY</h1>
     <div class="controls">
+      <button class="header-btn" id="mem-btn">MEM</button>
       <select id="session-select"><option value="">Current session</option></select>
       <div class="status">
         <div class="dot" id="status-dot"></div>
@@ -499,54 +811,37 @@ header .status .dot.disconnected {
     </div>
   </header>
 
-  <div class="panel" id="stats-panel">
+  <div id="stats-panel">
     <div class="stats-cards">
-      <div class="stat-card" id="card-tokens">
+      <div class="stat-card">
         <div class="title">Tokens</div>
         <div class="value" id="val-tokens">0</div>
         <div class="secondary" id="sec-tokens">avg 0/agent</div>
         <div class="sparkline"><svg id="spark-tokens"></svg></div>
       </div>
-      <div class="stat-card" id="card-cost">
+      <div class="stat-card">
         <div class="title">Cost</div>
         <div class="value" id="val-cost">$0.00</div>
         <div class="secondary" id="sec-cost">avg $0.00/agent</div>
         <div class="sparkline"><svg id="spark-cost"></svg></div>
       </div>
-      <div class="stat-card" id="card-agents">
+      <div class="stat-card">
         <div class="title">Agents</div>
         <div class="value" id="val-agents">0</div>
-        <div class="secondary" id="sec-agents">0 active · 0 done · 0 failed</div>
+        <div class="secondary" id="sec-agents">0 active</div>
         <div class="sparkline"><svg id="spark-agents"></svg></div>
       </div>
-      <div class="stat-card" id="card-duration">
+      <div class="stat-card">
         <div class="title">Duration</div>
         <div class="value" id="val-duration">0s</div>
         <div class="secondary" id="sec-duration">est. remaining: —</div>
       </div>
-      <div class="stat-card" id="card-efficiency">
+      <div class="stat-card">
         <div class="title">Efficiency</div>
         <div class="value" id="val-efficiency">—</div>
         <div class="secondary" id="sec-efficiency">&nbsp;</div>
         <div class="progress-bar"><div class="fill" id="efficiency-bar" style="width:0%"></div></div>
       </div>
-    </div>
-    <div class="agent-table-toggle" id="table-toggle">▸ Agent Table</div>
-    <div class="agent-table-wrap" id="table-wrap" style="display:none">
-      <table class="agent-table" id="agent-table">
-        <thead>
-          <tr>
-            <th data-col="agent">Agent</th>
-            <th data-col="type">Type</th>
-            <th data-col="task">Task</th>
-            <th data-col="tokens">Tokens</th>
-            <th data-col="cost">Cost</th>
-            <th data-col="duration">Duration</th>
-            <th data-col="status">Status</th>
-          </tr>
-        </thead>
-        <tbody id="agent-tbody"></tbody>
-      </table>
     </div>
   </div>
 
@@ -564,6 +859,62 @@ header .status .dot.disconnected {
     <div class="empty-state" id="sankey-empty">Waiting for events...</div>
     <svg id="sankey-svg"></svg>
   </div>
+
+  <div id="sidebar-panel">
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" data-tab="agents">Agents</div>
+      <div class="sidebar-tab" data-tab="tasks">Tasks</div>
+      <div class="sidebar-tab" data-tab="plan">Plan</div>
+      <div class="sidebar-tab" data-tab="events">Events</div>
+    </div>
+    <div class="sidebar-content">
+      <div class="sidebar-pane active" id="pane-agents">
+        <table class="agent-table" id="agent-table">
+          <thead>
+            <tr>
+              <th data-col="agent">Agent</th>
+              <th data-col="tokens">Tokens</th>
+              <th data-col="duration">Dur</th>
+              <th data-col="status">Status</th>
+            </tr>
+          </thead>
+          <tbody id="agent-tbody"></tbody>
+        </table>
+      </div>
+      <div class="sidebar-pane" id="pane-tasks">
+        <ul class="task-list" id="task-list"></ul>
+      </div>
+      <div class="sidebar-pane" id="pane-plan">
+        <div class="plan-panel" id="plan-panel">
+          <div class="plan-empty">No plan detected</div>
+        </div>
+      </div>
+      <div class="sidebar-pane" id="pane-events" style="display:none;flex-direction:column;height:100%">
+        <div class="event-log-controls">
+          <input type="text" id="event-filter-text" placeholder="Filter events...">
+          <select id="event-filter-type">
+            <option value="">All types</option>
+            <option value="tool_start">tool_start</option>
+            <option value="tool_end">tool_end</option>
+            <option value="agent_complete">agent_complete</option>
+            <option value="agent_spawn">agent_spawn</option>
+            <option value="compaction">compaction</option>
+            <option value="session_start">session_start</option>
+            <option value="session_end">session_end</option>
+          </select>
+        </div>
+        <ul class="event-log-list" id="event-log-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="info-bar">
+    <span id="info-events">0 events</span>
+    <span class="info-badge plan-mode" id="info-plan-mode">PLAN MODE</span>
+    <span class="info-badge tasks-count" id="info-tasks">0 tasks</span>
+    <span class="info-badge compaction-count" id="info-compactions">0 compactions</span>
+    <span class="info-badge error-count" id="info-errors">0 errors</span>
+  </div>
 </div>
 
 <script>
@@ -579,9 +930,44 @@ const state = {
   agentCountHistory: [],
   sortCol: 'agent',
   sortAsc: true,
-  tableVisible: false,
   timelineCollapsed: new Set(),
+  tasks: new Map(),
+  // Multi-plan support
+  planCycles: [],
+  planMode: false,
+  activeTab: 'agents',
+  // Compaction tracking
+  compactions: [],
+  // Session end
+  sessionEndTime: null,
+  // Event log + timeline sync
+  highlightTimestamp: null,
+  highlightedEventId: null,
+  highlightedPlanCycle: null,
 };
+
+// --- Time formatting ---
+
+function formatTime(ms, baseMs) {
+  const sec = (ms - baseMs) / 1000;
+  if (sec < 60) return sec.toFixed(1) + 's';
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function getTickInterval(rangeSeconds) {
+  if (rangeSeconds < 60) return 5;
+  if (rangeSeconds < 300) return 15;
+  if (rangeSeconds < 3600) return 60;
+  return Math.ceil(rangeSeconds / 10);
+}
 
 // --- Event ingestion ---
 
@@ -589,6 +975,18 @@ function ingestEvent(evt) {
   state.events.push(evt);
 
   if (!state.sessionStart) state.sessionStart = evt.timestamp;
+
+  // Task/Plan data ingestion
+  if (evt.task_data) ingestTaskData(evt);
+  if (evt.plan_data) ingestPlanData(evt);
+
+  if (evt.event_type === 'compaction') {
+    state.compactions.push({ timestamp: evt.timestamp, trigger: evt.trigger || 'auto' });
+  }
+
+  if (evt.event_type === 'session_end') {
+    state.sessionEndTime = evt.timestamp;
+  }
 
   if (evt.event_type === 'session_start') {
     if (!state.agents.has(evt.agent_id || 'ag_main')) {
@@ -686,6 +1084,74 @@ function ingestEvent(evt) {
   updateHistories();
 }
 
+function ingestTaskData(evt) {
+  const td = evt.task_data;
+  if (!td) return;
+  if (td.task_type === 'task_create') {
+    const id = String(state.tasks.size + 1);
+    state.tasks.set(id, {
+      id,
+      subject: td.subject,
+      description: td.description || '',
+      activeForm: td.activeForm || '',
+      status: 'pending',
+      owner: null,
+      agentId: evt.agent_id || null,
+      createdAt: evt.timestamp,
+    });
+  } else if (td.task_type === 'task_update') {
+    const task = state.tasks.get(td.taskId);
+    if (task) {
+      if (td.status) task.status = td.status;
+      if (td.owner) task.owner = td.owner;
+      if (td.subject) task.subject = td.subject;
+    }
+  } else if (td.task_type === 'task_list' && Array.isArray(td.tasks)) {
+    for (const t of td.tasks) {
+      const id = t.id || String(t.index);
+      if (state.tasks.has(id)) {
+        const existing = state.tasks.get(id);
+        if (t.status) existing.status = t.status;
+        if (t.subject) existing.subject = t.subject;
+        if (t.owner) existing.owner = t.owner;
+      } else {
+        state.tasks.set(id, {
+          id, subject: t.subject || '', description: t.description || '',
+          activeForm: '', status: t.status || 'pending',
+          owner: t.owner || null, agentId: null, createdAt: evt.timestamp,
+        });
+      }
+    }
+  } else if (td.task_type === 'task_get' && td.task) {
+    const t = td.task;
+    const id = t.id || t.taskId;
+    if (id && state.tasks.has(id)) {
+      const existing = state.tasks.get(id);
+      if (t.status) existing.status = t.status;
+      if (t.subject) existing.subject = t.subject;
+    }
+  }
+}
+
+function ingestPlanData(evt) {
+  const pd = evt.plan_data;
+  if (!pd) return;
+  if (pd.plan_event === 'enter_plan_mode') {
+    state.planMode = true;
+    state.planCycles.push({ startTime: evt.timestamp, endTime: null, content: null, active: true, writeTime: null });
+  } else if (pd.plan_event === 'exit_plan_mode') {
+    state.planMode = false;
+    const cycle = [...state.planCycles].reverse().find(c => c.active);
+    if (cycle) { cycle.endTime = evt.timestamp; cycle.active = false; }
+  } else if (pd.plan_event === 'plan_write') {
+    const cycle = [...state.planCycles].reverse().find(c => c.active) || state.planCycles[state.planCycles.length - 1];
+    if (cycle) {
+      cycle.content = { filePath: pd.file_path, preview: pd.content_preview };
+      cycle.writeTime = evt.timestamp;
+    }
+  }
+}
+
 function updateHistories() {
   const agents = [...state.agents.values()];
   const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
@@ -734,7 +1200,6 @@ function resetIdleTimer() {
 
 function connectSSE() {
   if (evtSource) evtSource.close();
-
   evtSource = new EventSource('/api/events');
 
   evtSource.addEventListener('message', (e) => {
@@ -774,6 +1239,14 @@ async function loadSession(sessionId) {
   state.tokenHistory = [];
   state.costHistory = [];
   state.agentCountHistory = [];
+  state.tasks.clear();
+  state.planCycles = [];
+  state.planMode = false;
+  state.compactions = [];
+  state.sessionEndTime = null;
+  state.highlightTimestamp = null;
+  state.highlightedEventId = null;
+  state.highlightedPlanCycle = null;
   events.forEach(e => ingestEvent(e));
   const lastTs = events.length ? events[events.length - 1].timestamp : 0;
   if (lastTs && (Date.now() - lastTs > IDLE_THRESHOLD_MS)) finalizeRunningAgents();
@@ -801,6 +1274,9 @@ function render() {
   renderTimeline();
   renderSankey();
   renderStats();
+  renderSidebar();
+  renderInfoBar();
+  renderEventLog();
 }
 
 // --- Timeline panel ---
@@ -819,14 +1295,12 @@ function renderTimeline() {
 
   const headerH = container.querySelector('.panel-header').offsetHeight;
   const width = container.clientWidth;
-  const containerH = container.clientHeight - headerH;
-  const margin = { top: 10, right: 20, bottom: 24, left: 140 };
+  const margin = { top: 10, right: 20, bottom: 28, left: 140 };
 
   svg.selectAll('*').remove();
 
   const agents = buildAgentTree();
 
-  // Auto-collapse for large swarms (>20 agents)
   if (agents.length > 20 && state.timelineCollapsed.size === 0) {
     agents.filter(a => !a.parentId || !state.agents.has(a.parentId)).forEach(a => {
       const hasChildren = agents.some(c => c.parentId === a.id);
@@ -839,31 +1313,80 @@ function renderTimeline() {
 
   const xMin = d3.min(visibleAgents, a => a.spawnTime) || now - 10000;
   const xMax = d3.max(visibleAgents, a => a.endTime || now) || now;
+  const rangeSeconds = (xMax - xMin) / 1000;
 
   const x = d3.scaleLinear()
     .domain([xMin, xMax + (xMax - xMin) * 0.05])
     .range([margin.left, width - margin.right]);
 
   const rowH = 40;
+  const maxH = Math.min(visibleAgents.length * rowH + margin.top + margin.bottom, window.innerHeight * 0.5);
   const contentH = margin.top + visibleAgents.length * rowH + margin.bottom;
   const height = Math.max(contentH, 100);
   svg.attr('viewBox', `0 0 ${width} ${height}`);
-  svg.style('height', `${height}px`);
+  svg.style('height', `${Math.min(height, maxH)}px`);
   const y = (i) => margin.top + i * rowH;
 
   const g = svg.append('g');
 
   const agentColors = {
-    main: '#9ca3af', Explore: '#4a9eff', Plan: '#a855f7',
-    Bash: '#22c55e', 'general-purpose': '#f59e0b',
+    main: '#9ca3af', Explore: '#818cf8', Plan: '#a78bfa',
+    Bash: '#34d399', 'general-purpose': '#fbbf24',
   };
 
   const toolColors = {
     Read: '#60a5fa', Write: '#34d399', Edit: '#fbbf24', Glob: '#818cf8',
     Grep: '#c084fc', Bash: '#4ade80', Task: '#f97316', NotebookEdit: '#fb923c',
     WebFetch: '#22d3ee', WebSearch: '#2dd4bf', Skill: '#e879f9',
+    EnterPlanMode: '#a78bfa', ExitPlanMode: '#a78bfa',
+    TaskCreate: '#818cf8', TaskUpdate: '#818cf8', TaskList: '#818cf8',
   };
   const defaultToolColor = '#94a3b8';
+
+  // Compaction epochs — subtle background tint between compactions
+  if (state.compactions.length > 0) {
+    state.compactions.forEach((c, i) => {
+      const epochStart = x(c.timestamp);
+      const epochEnd = i < state.compactions.length - 1 ? x(state.compactions[i + 1].timestamp) : x(xMax + (xMax - xMin) * 0.05);
+      g.append('rect')
+        .attr('class', 'compaction-epoch')
+        .attr('x', epochStart).attr('y', 0)
+        .attr('width', Math.max(epochEnd - epochStart, 1)).attr('height', height - margin.bottom);
+    });
+  }
+
+  // Multi-plan cycle regions
+  state.planCycles.forEach((cycle, i) => {
+    const pStart = x(cycle.startTime);
+    const pEnd = x(cycle.endTime || now);
+    const isHighlighted = state.highlightedPlanCycle === i;
+    g.append('rect')
+      .attr('class', 'plan-mode-region')
+      .attr('x', pStart).attr('y', 0)
+      .attr('width', Math.max(pEnd - pStart, 2)).attr('height', height - margin.bottom)
+      .attr('rx', 4)
+      .attr('fill', isHighlighted ? 'rgba(167, 139, 250, 0.14)' : 'rgba(167, 139, 250, 0.06)')
+      .attr('stroke', isHighlighted ? 'rgba(167, 139, 250, 0.5)' : 'rgba(167, 139, 250, 0.2)')
+      .attr('stroke-dasharray', isHighlighted ? 'none' : '4,4')
+      .style('cursor', 'pointer')
+      .on('click', () => highlightPlanCycle(i));
+    g.append('text')
+      .attr('class', 'plan-mode-label')
+      .attr('x', pStart + 6).attr('y', 8)
+      .attr('dy', '0.7em')
+      .text(`PLAN ${i + 1}`)
+      .style('cursor', 'pointer')
+      .on('click', () => highlightPlanCycle(i));
+    // Plan write dot
+    if (cycle.writeTime) {
+      g.append('circle')
+        .attr('class', 'plan-write-dot')
+        .attr('cx', x(cycle.writeTime)).attr('cy', 14)
+        .attr('r', 4)
+        .on('mouseenter', (e) => showTooltip(e, `<span class="label">Plan Write</span><br>${esc(cycle.content?.filePath || 'unknown')}`))
+        .on('mouseleave', hideTooltip);
+    }
+  });
 
   visibleAgents.forEach((agent, i) => {
     const color = agentColors[agent.label] || '#9ca3af';
@@ -875,7 +1398,6 @@ function renderTimeline() {
     const depth = getDepth(agent.id);
     const indent = depth * 12;
 
-    // Connector to parent
     if (agent.parentId) {
       const parentIdx = visibleAgents.findIndex(a => a.id === agent.parentId);
       if (parentIdx >= 0) {
@@ -886,37 +1408,35 @@ function renderTimeline() {
       }
     }
 
-    // Agent bar — subtle track background
-    const isDimmed = state.selectedAgentId && state.selectedAgentId !== agent.id;
+    const isDimmed = (state.selectedAgentId && state.selectedAgentId !== agent.id) ||
+      (state.highlightedPlanCycle !== null && !isAgentInPlanCycle(agent, state.highlightedPlanCycle));
     g.append('rect')
       .attr('class', `timeline-bar ${isDimmed ? 'dimmed' : ''}`)
       .attr('x', startX).attr('y', barY)
       .attr('width', Math.max(endX - startX, 2)).attr('height', barH)
       .attr('rx', 4)
-      .attr('fill', color).attr('opacity', 0.12)
+      .attr('fill', color).attr('opacity', 0.1)
       .on('click', () => selectAgent(agent.id))
       .on('mouseenter', (e) => showTooltip(e, agentTooltipHtml(agent)))
       .on('mouseleave', hideTooltip);
 
-    // Thin baseline within track
     g.append('line')
       .attr('x1', startX).attr('y1', barY + barH / 2)
       .attr('x2', endX).attr('y2', barY + barH / 2)
-      .attr('stroke', color).attr('stroke-opacity', 0.15).attr('stroke-width', 1);
+      .attr('stroke', color).attr('stroke-opacity', 0.12).attr('stroke-width', 1);
 
-    // Tool call segments — per-tool-type colors, stroke gaps, labels
     const agentTools = state.toolCalls.filter(t => t.agentId === agent.id);
     agentTools.forEach(tc => {
       const tcStart = x(tc.startTime);
       const tcEnd = x(tc.endTime || now);
       const tcW = Math.max(tcEnd - tcStart, 3);
-      const tcColor = tc.hasError ? '#ef4444' : (toolColors[tc.toolName] || defaultToolColor);
+      const tcColor = tc.hasError ? '#f87171' : (toolColors[tc.toolName] || defaultToolColor);
       g.append('rect')
         .attr('class', `tool-segment ${isDimmed ? 'dimmed' : ''}`)
         .attr('x', tcStart).attr('y', barY + 1)
         .attr('width', tcW).attr('height', barH - 2)
         .attr('rx', 3)
-        .attr('fill', tcColor).attr('opacity', tc.hasError ? 0.95 : 0.85)
+        .attr('fill', tcColor).attr('opacity', tc.hasError ? 0.95 : 0.8)
         .on('mouseenter', (e) => {
           let tip = `<span class="label">${tc.toolName}</span>`;
           if (tc.hasError) tip += ' <span style="color:var(--red)">ERROR</span>';
@@ -927,7 +1447,6 @@ function renderTimeline() {
         })
         .on('mouseleave', hideTooltip);
 
-      // Tool name label for segments wide enough
       if (tcW > 28) {
         g.append('text')
           .attr('class', 'tool-label')
@@ -938,7 +1457,6 @@ function renderTimeline() {
       }
     });
 
-    // Active agent pulsing end
     if (!agent.endTime) {
       g.append('rect')
         .attr('class', 'pulse-cap')
@@ -948,17 +1466,16 @@ function renderTimeline() {
         .attr('rx', 1);
     }
 
-    // Label
     const hasChildren = [...state.agents.values()].some(a => a.parentId === agent.id);
     const collapsed = state.timelineCollapsed.has(agent.id);
-    const prefix = hasChildren ? (collapsed ? '▸ ' : '▾ ') : '  ';
+    const prefix = hasChildren ? (collapsed ? '+ ' : '- ') : '  ';
 
     g.append('text')
       .attr('x', margin.left - 8 + indent)
       .attr('y', barY + barH / 2 + 1)
       .attr('text-anchor', 'end')
       .attr('fill', color)
-      .attr('font-size', '12px')
+      .attr('font-size', '11px')
       .attr('cursor', hasChildren ? 'pointer' : 'default')
       .text(prefix + agent.label + (agent.id !== 'ag_main' ? ' ' + agent.id.slice(-6) : ''))
       .on('click', () => {
@@ -970,37 +1487,93 @@ function renderTimeline() {
       });
   });
 
-  // Tool legend — show active tool types
+  // Compaction markers
+  state.compactions.forEach((c, i) => {
+    const cx = x(c.timestamp);
+    g.append('line')
+      .attr('class', 'compaction-marker')
+      .attr('x1', cx).attr('y1', 0).attr('x2', cx).attr('y2', height - margin.bottom)
+      .on('click', () => openCompactionDrawer(i, c))
+      .on('mouseenter', (e) => showTooltip(e, `<span class="label" style="color:var(--amber)">Compaction C${i + 1}</span><br>Trigger: ${c.trigger}<br>${formatTime(c.timestamp, xMin)}`))
+      .on('mouseleave', hideTooltip);
+    g.append('text')
+      .attr('class', 'compaction-label')
+      .attr('x', cx + 4).attr('y', height - margin.bottom - 4)
+      .text(`C${i + 1}`)
+      .style('cursor', 'pointer')
+      .on('click', () => openCompactionDrawer(i, c));
+  });
+
+  // Session end marker
+  if (state.sessionEndTime) {
+    const sex = x(state.sessionEndTime);
+    g.append('line')
+      .attr('class', 'session-end-marker')
+      .attr('x1', sex).attr('y1', 0).attr('x2', sex).attr('y2', height - margin.bottom);
+    g.append('text')
+      .attr('class', 'session-end-label')
+      .attr('x', sex + 4).attr('y', height - margin.bottom - 4)
+      .text('END');
+  }
+
+  // Highlight line (event sync)
+  if (state.highlightTimestamp) {
+    const hlx = x(state.highlightTimestamp);
+    g.append('line')
+      .attr('class', 'highlight-line')
+      .attr('x1', hlx).attr('y1', 0).attr('x2', hlx).attr('y2', height - margin.bottom);
+    g.append('text')
+      .attr('class', 'highlight-label')
+      .attr('x', hlx + 4).attr('y', 14)
+      .text(formatTime(state.highlightTimestamp, xMin));
+  }
+
+  // Tool legend
   const usedTools = new Set(state.toolCalls.map(t => t.toolName));
   const legend = document.getElementById('tool-legend');
-  legend.innerHTML = [...usedTools].slice(0, 8).map(name => {
+  legend.innerHTML = [...usedTools].filter(n => !['EnterPlanMode','ExitPlanMode','TaskCreate','TaskUpdate','TaskList','TaskGet'].includes(n)).slice(0, 8).map(name => {
     const c = toolColors[name] || defaultToolColor;
-    const short = name.length > 12 ? name.slice(0, 11) + '\u2026' : name;
-    return `<span style="display:flex;align-items:center;gap:3px" title="${name}"><span style="width:8px;height:8px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>${short}</span>`;
+    const short = name.length > 10 ? name.slice(0, 9) + '\u2026' : name;
+    return `<span style="display:flex;align-items:center;gap:3px" title="${name}"><span style="width:7px;height:7px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>${short}</span>`;
   }).join('');
 
-  // X-axis
+  // X-axis with smart formatting
+  const tickInterval = getTickInterval(rangeSeconds);
   const xAxis = d3.axisBottom(x)
-    .ticks(6)
-    .tickFormat(d => {
-      const sec = ((d - xMin) / 1000).toFixed(1);
-      return `${sec}s`;
-    });
+    .tickValues(d3.range(xMin, xMax + tickInterval * 1000, tickInterval * 1000))
+    .tickFormat(d => formatTime(d, xMin));
 
   svg.append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${height - margin.bottom})`)
     .call(xAxis)
-    .selectAll('text').attr('fill', '#666').attr('font-size', '10px');
+    .selectAll('text').attr('fill', '#555').attr('font-size', '9px');
 
-  svg.selectAll('.domain, .tick line').attr('stroke', '#333');
+  svg.selectAll('.domain, .tick line').attr('stroke', '#222');
 
-  // Zoom on X-axis only
+  // Hover reference line
+  const hoverG = svg.append('g').style('display', 'none');
+  hoverG.append('line').attr('class', 'hover-line').attr('y1', 0).attr('y2', height - margin.bottom);
+  hoverG.append('text').attr('class', 'hover-label').attr('y', -4);
+
+  svg.on('mousemove', (e) => {
+    const [mx] = d3.pointer(e);
+    if (mx < margin.left || mx > width - margin.right) {
+      hoverG.style('display', 'none');
+      return;
+    }
+    hoverG.style('display', null);
+    hoverG.select('line').attr('x1', mx).attr('x2', mx);
+    const t = x.invert(mx);
+    hoverG.select('text').attr('x', mx + 4).text(formatTime(t, xMin));
+  }).on('mouseleave', () => hoverG.style('display', 'none'));
+
+  // Zoom
   const zoom = d3.zoom()
     .scaleExtent([0.5, 50])
     .on('zoom', (event) => {
       const newX = event.transform.rescaleX(x);
-      g.selectAll('.timeline-bar').each(function(d, i, nodes) {
+      g.selectAll('.timeline-bar').each(function() {
         const el = d3.select(this);
         const ox = parseFloat(el.attr('data-ox'));
         const ow = parseFloat(el.attr('data-ow'));
@@ -1022,20 +1595,64 @@ function renderTimeline() {
       });
       g.selectAll('.connector-line').each(function() {
         const el = d3.select(this);
-        const ox = parseFloat(el.attr('data-ox'));
-        el.attr('x1', newX(ox)).attr('x2', newX(ox));
+        el.attr('x1', newX(parseFloat(el.attr('data-ox')))).attr('x2', newX(parseFloat(el.attr('data-ox'))));
       });
       g.selectAll('.pulse-cap').each(function() {
         const el = d3.select(this);
-        const ox = parseFloat(el.attr('data-ox'));
-        el.attr('x', newX(ox) - 1.5);
+        el.attr('x', newX(parseFloat(el.attr('data-ox'))) - 1.5);
       });
-      svg.select('.x-axis').call(d3.axisBottom(newX).ticks(6).tickFormat(d => {
-        return `${((d - xMin) / 1000).toFixed(1)}s`;
-      }));
+      g.selectAll('.plan-mode-region').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const ow = parseFloat(el.attr('data-ow'));
+        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 2));
+      });
+      g.selectAll('.plan-mode-label').each(function() {
+        const el = d3.select(this);
+        el.attr('x', newX(parseFloat(el.attr('data-ox'))) + 6);
+      });
+      g.selectAll('.compaction-marker').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        el.attr('x1', newX(ox)).attr('x2', newX(ox));
+      });
+      g.selectAll('.compaction-label').each(function() {
+        const el = d3.select(this);
+        el.attr('x', newX(parseFloat(el.attr('data-ox'))) + 4);
+      });
+      g.selectAll('.session-end-marker').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        el.attr('x1', newX(ox)).attr('x2', newX(ox));
+      });
+      g.selectAll('.session-end-label').each(function() {
+        const el = d3.select(this);
+        el.attr('x', newX(parseFloat(el.attr('data-ox'))) + 4);
+      });
+      g.selectAll('.highlight-line').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        el.attr('x1', newX(ox)).attr('x2', newX(ox));
+      });
+      g.selectAll('.highlight-label').each(function() {
+        const el = d3.select(this);
+        el.attr('x', newX(parseFloat(el.attr('data-ox'))) + 4);
+      });
+      g.selectAll('.plan-write-dot').each(function() {
+        const el = d3.select(this);
+        el.attr('cx', newX(parseFloat(el.attr('data-ox'))));
+      });
+      g.selectAll('.compaction-epoch').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const ow = parseFloat(el.attr('data-ow'));
+        el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 1));
+      });
+      svg.select('.x-axis').call(d3.axisBottom(newX).ticks(6).tickFormat(d => formatTime(d, xMin)));
+      hoverG.style('display', 'none');
     });
 
-  // Store original time-domain values for zoom rescaling
+  // Store original values for zoom
   g.selectAll('.timeline-bar').each(function() {
     const el = d3.select(this);
     el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
@@ -1062,6 +1679,48 @@ function renderTimeline() {
     const el = d3.select(this);
     el.attr('data-ox', x.invert(parseFloat(el.attr('x')) + 1.5));
   });
+  g.selectAll('.plan-mode-region').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
+    el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
+  });
+  g.selectAll('.plan-mode-label').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x')) - 6));
+  });
+  g.selectAll('.compaction-marker').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x1'))));
+  });
+  g.selectAll('.compaction-label').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x')) - 4));
+  });
+  g.selectAll('.session-end-marker').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x1'))));
+  });
+  g.selectAll('.session-end-label').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x')) - 4));
+  });
+  g.selectAll('.highlight-line').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x1'))));
+  });
+  g.selectAll('.highlight-label').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x')) - 4));
+  });
+  g.selectAll('.plan-write-dot').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('cx'))));
+  });
+  g.selectAll('.compaction-epoch').each(function() {
+    const el = d3.select(this);
+    el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
+    el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
+  });
 
   svg.call(zoom);
 }
@@ -1069,17 +1728,12 @@ function renderTimeline() {
 function buildAgentTree() {
   const agents = [...state.agents.values()];
   if (agents.length === 0) return [];
-
   const roots = agents.filter(a => !a.parentId || !state.agents.has(a.parentId));
   const result = [];
-
   function walk(agent) {
     result.push(agent);
-    const children = agents.filter(a => a.parentId === agent.id);
-    children.sort((a, b) => a.spawnTime - b.spawnTime);
-    children.forEach(walk);
+    agents.filter(a => a.parentId === agent.id).sort((a, b) => a.spawnTime - b.spawnTime).forEach(walk);
   }
-
   roots.sort((a, b) => a.spawnTime - b.spawnTime);
   roots.forEach(walk);
   return result;
@@ -1109,10 +1763,17 @@ function getDepth(agentId) {
 function agentTooltipHtml(a) {
   const tokens = a.tokensIn + a.tokensOut;
   const dur = a.endTime ? ((a.endTime - a.spawnTime) / 1000).toFixed(1) + 's' : 'running';
-  return `<span class="label">${a.label}</span> ${a.id.slice(-8)}<br>` +
-    (a.task ? `<span class="dim">${a.task.slice(0, 80)}</span><br>` : '') +
-    `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>` +
-    `Status: ${a.status}`;
+  let tip = `<span class="label">${a.label}</span> ${a.id.slice(-8)}<br>`;
+  if (a.task) tip += `<span class="dim">${a.task.slice(0, 80)}</span><br>`;
+  tip += `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>Status: ${a.status}`;
+  // Task associations
+  const agentTasks = [...state.tasks.values()].filter(t =>
+    (t.owner && a.id.includes(t.owner)) || (a.task && t.subject && fuzzyMatch(a.task, t.subject))
+  );
+  if (agentTasks.length > 0) {
+    tip += `<br><span class="dim">Tasks: ${agentTasks.map(t => t.subject).join(', ')}</span>`;
+  }
+  return tip;
 }
 
 // --- Sankey panel ---
@@ -1139,52 +1800,71 @@ function renderSankey() {
 
   const agents = [...state.agents.values()];
   const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0) || 1;
+  const hasTasks = state.tasks.size > 0;
 
-  // Build nodes and links for 4-column Sankey
   const nodeMap = new Map();
   const links = [];
 
-  // Column 0: Prompt nodes
-  const rootAgents = agents.filter(a => !a.parentId || !state.agents.has(a.parentId));
+  // Column 0: Prompt
   const promptId = 'prompt_root';
   nodeMap.set(promptId, { id: promptId, name: 'Root Prompt', column: 0 });
 
-  // Column 1: Decomposition nodes (unique task descriptions from spawned agents)
-  const spawnedAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
+  // Column 1: Decomposition — use tasks if available, else agent descriptions
   const decomps = new Map();
-  spawnedAgents.forEach(a => {
-    const key = `decomp_${a.task.slice(0, 50) || a.id}`;
-    if (!decomps.has(key)) {
-      decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: 0 });
-    }
-    decomps.get(key).tokens += a.tokensIn + a.tokensOut;
-  });
+  const subAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
 
-  if (decomps.size === 0 && rootAgents.length > 0) {
-    const key = 'decomp_main';
-    decomps.set(key, { id: key, name: 'Main Task', column: 1, tokens: totalTokens });
+  if (hasTasks) {
+    for (const [id, task] of state.tasks) {
+      const key = `task_${id}`;
+      decomps.set(key, {
+        id: key, name: task.subject.slice(0, 40) || `Task ${id}`,
+        column: 1, tokens: 0, taskStatus: task.status, taskId: id,
+      });
+    }
+    // Accumulate tokens per task by matching agents
+    subAgents.forEach(a => {
+      const matchedTask = findTaskForAgent(a);
+      if (matchedTask) {
+        const key = `task_${matchedTask.id}`;
+        if (decomps.has(key)) decomps.get(key).tokens += a.tokensIn + a.tokensOut;
+      }
+    });
+    // Ensure unmatched agents still show
+    subAgents.forEach(a => {
+      const matchedTask = findTaskForAgent(a);
+      if (!matchedTask) {
+        const key = `decomp_${a.id}`;
+        decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: a.tokensIn + a.tokensOut });
+      }
+    });
+  } else {
+    subAgents.forEach(a => {
+      const key = `decomp_${a.task.slice(0, 50) || a.id}`;
+      if (!decomps.has(key)) decomps.set(key, { id: key, name: a.task.slice(0, 40) || a.label, column: 1, tokens: 0 });
+      decomps.get(key).tokens += a.tokensIn + a.tokensOut;
+    });
+  }
+
+  if (decomps.size === 0) {
+    decomps.set('decomp_main', { id: 'decomp_main', name: 'Main Task', column: 1, tokens: totalTokens });
   }
 
   decomps.forEach((v, k) => nodeMap.set(k, v));
-
-  // Links: prompt → decomposition
   decomps.forEach((d, key) => {
-    links.push({ source: promptId, target: key, value: Math.max(d.tokens, 1) });
+    links.push({ source: promptId, target: key, value: Math.max(d.tokens || 1, 1) });
   });
 
-  // Column 2: Agent nodes (sub-agents only, not the main/root agent)
-  const allSubAgents = agents.filter(a => a.parentId && state.agents.has(a.parentId));
+  // Column 2: Agent nodes
   const threshold = totalTokens * 0.05;
-  let subAgentsList = allSubAgents;
+  let agentList = subAgents;
   let otherTokens = 0;
 
-  // Group small agents into "Other" when there are many
-  if (allSubAgents.length > 20) {
-    subAgentsList = [];
-    allSubAgents.forEach(a => {
+  if (subAgents.length > 20) {
+    agentList = [];
+    subAgents.forEach(a => {
       const tokens = a.tokensIn + a.tokensOut;
       if (tokens < threshold) otherTokens += tokens;
-      else subAgentsList.push(a);
+      else agentList.push(a);
     });
     if (otherTokens > 0) {
       const otherId = 'ag_other';
@@ -1195,23 +1875,30 @@ function renderSankey() {
     }
   }
 
-  subAgentsList.forEach(a => {
+  agentList.forEach(a => {
     const tokens = a.tokensIn + a.tokensOut;
     nodeMap.set(a.id, { id: a.id, name: `${a.label} ${a.id.slice(-6)}`, column: 2, tokens, status: a.status, label: a.label });
   });
 
   // Links: decomposition → agents
-  subAgentsList.forEach(a => {
-    const decompKey = `decomp_${a.task.slice(0, 50) || a.id}`;
+  agentList.forEach(a => {
     const tokens = a.tokensIn + a.tokensOut;
-    if (nodeMap.has(decompKey)) {
+    let decompKey = null;
+    if (hasTasks) {
+      const matchedTask = findTaskForAgent(a);
+      if (matchedTask) decompKey = `task_${matchedTask.id}`;
+      else decompKey = `decomp_${a.id}`;
+    } else {
+      decompKey = `decomp_${a.task.slice(0, 50) || a.id}`;
+    }
+    if (decompKey && nodeMap.has(decompKey)) {
       links.push({ source: decompKey, target: a.id, value: Math.max(tokens, 1) });
     }
   });
 
-  // Column 3: Outcome nodes (from sub-agents only)
+  // Column 3: Outcomes
   const outcomeMap = new Map();
-  const completedSubs = subAgentsList.filter(a => a.status !== 'running');
+  const completedSubs = agentList.filter(a => a.status !== 'running');
 
   if (completedSubs.length > 0) {
     const clusters = [];
@@ -1226,9 +1913,7 @@ function renderSankey() {
           break;
         }
       }
-      if (!matched) {
-        clusters.push({ tags: [...a.tags], agents: [a] });
-      }
+      if (!matched) clusters.push({ tags: [...a.tags], agents: [a] });
     });
 
     clusters.forEach((cluster, i) => {
@@ -1238,14 +1923,13 @@ function renderSankey() {
       const label = cluster.tags[0] || (allError ? 'Failed' : 'Completed');
       const key = `outcome_${i}`;
       outcomeMap.set(key, { id: key, name: label, column: 3, status });
-
       cluster.agents.forEach(a => {
         links.push({ source: a.id, target: key, value: Math.max(a.tokensIn + a.tokensOut, 1), agentStatus: a.status });
       });
     });
   }
 
-  const runningSubs = subAgentsList.filter(a => a.status === 'running');
+  const runningSubs = agentList.filter(a => a.status === 'running');
   if (runningSubs.length > 0) {
     const key = 'outcome_running';
     outcomeMap.set(key, { id: key, name: 'In Progress', column: 3, status: 'running' });
@@ -1256,7 +1940,6 @@ function renderSankey() {
 
   outcomeMap.forEach((v, k) => nodeMap.set(k, v));
 
-  // Build sankey data
   const nodes = [...nodeMap.values()];
   const nodeIndex = new Map(nodes.map((n, i) => [n.id, i]));
 
@@ -1267,12 +1950,11 @@ function renderSankey() {
   if (nodes.length < 2 || sankeyLinks.length === 0) return;
 
   try {
-    const nodeCount = nodes.length;
-    const dynamicPadding = nodeCount > 15 ? 4 : nodeCount > 8 ? 8 : 14;
+    const dynamicPadding = nodes.length > 15 ? 4 : nodes.length > 8 ? 8 : 14;
     const sankeyGen = d3.sankey()
       .nodeId(d => d.index)
       .nodeAlign(d3.sankeyLeft)
-      .nodeWidth(14)
+      .nodeWidth(12)
       .nodePadding(dynamicPadding)
       .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
 
@@ -1296,7 +1978,6 @@ function renderSankey() {
       return 'var(--green)';
     };
 
-    // Links
     g.selectAll('.sankey-link')
       .data(sLinks)
       .join('path')
@@ -1307,6 +1988,13 @@ function renderSankey() {
         if ((tgt && tgt.status === 'running') || (src && src.status === 'running')) cls += ' in-progress';
         if (state.selectedAgentId) {
           if (src.id !== state.selectedAgentId && tgt.id !== state.selectedAgentId) cls += ' dimmed';
+        }
+        if (state.highlightedPlanCycle !== null) {
+          const srcAgent = state.agents.get(src.id);
+          const tgtAgent = state.agents.get(tgt.id);
+          const srcDimmed = srcAgent && !isAgentInPlanCycle(srcAgent, state.highlightedPlanCycle);
+          const tgtDimmed = tgtAgent && !isAgentInPlanCycle(tgtAgent, state.highlightedPlanCycle);
+          if (srcDimmed && tgtDimmed) cls += ' dimmed';
         }
         return cls;
       })
@@ -1320,7 +2008,6 @@ function renderSankey() {
       })
       .on('mouseleave', hideTooltip);
 
-    // Nodes
     const node = g.selectAll('.sankey-node')
       .data(sNodes)
       .join('g')
@@ -1329,6 +2016,12 @@ function renderSankey() {
 
     const nodeColor = (d) => {
       if (d.column === 0) return 'var(--accent)';
+      if (d.column === 1 && d.taskStatus) {
+        if (d.taskStatus === 'error') return 'var(--red)';
+        if (d.taskStatus === 'completed') return 'var(--green)';
+        if (d.taskStatus === 'in_progress') return 'var(--accent)';
+        return 'var(--text-dim)';
+      }
       if (d.column === 3) {
         if (d.status === 'error') return 'var(--red)';
         if (d.status === 'partial') return 'var(--amber)';
@@ -1336,7 +2029,7 @@ function renderSankey() {
         return 'var(--green)';
       }
       if (d.label) {
-        const colors = { main: '#9ca3af', Explore: '#4a9eff', Plan: '#a855f7', Bash: '#22c55e', 'general-purpose': '#f59e0b' };
+        const colors = { main: '#9ca3af', Explore: '#818cf8', Plan: '#a78bfa', Bash: '#34d399', 'general-purpose': '#fbbf24' };
         return colors[d.label] || '#9ca3af';
       }
       return 'var(--text-dim)';
@@ -1348,22 +2041,25 @@ function renderSankey() {
       .attr('fill', nodeColor)
       .attr('opacity', d => {
         if (state.selectedAgentId && d.id !== state.selectedAgentId && d.column === 2) return 0.3;
+        if (state.highlightedPlanCycle !== null && d.column === 2) {
+          const agent = state.agents.get(d.id);
+          if (agent && !isAgentInPlanCycle(agent, state.highlightedPlanCycle)) return 0.3;
+        }
         return 0.8;
       })
+      .attr('rx', 2)
       .on('click', (e, d) => {
         if (d.column === 2) selectAgent(d.id);
       });
 
-    // Text background for contrast (rendered behind the visible text)
     node.append('text')
       .attr('class', 'sankey-label-bg')
       .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
       .attr('y', d => (d.y1 - d.y0) / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
-      .text(d => d.name.length > 35 ? d.name.slice(0, 33) + '\u2026' : d.name);
+      .text(d => d.name.length > 30 ? d.name.slice(0, 28) + '\u2026' : d.name);
 
-    // Visible label text
     node.append('text')
       .attr('x', d => d.x0 < width / 2 ? (d.x1 - d.x0) + 8 : -8)
       .attr('y', d => (d.y1 - d.y0) / 2)
@@ -1371,6 +2067,11 @@ function renderSankey() {
       .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
       .attr('fill', d => {
         if (d.column === 0) return 'var(--accent)';
+        if (d.column === 1 && d.taskStatus) {
+          if (d.taskStatus === 'error') return 'var(--red)';
+          if (d.taskStatus === 'completed') return 'var(--green)';
+          return 'var(--text)';
+        }
         if (d.column === 3) {
           if (d.status === 'error') return 'var(--red)';
           if (d.status === 'running') return 'var(--accent)';
@@ -1378,12 +2079,19 @@ function renderSankey() {
         }
         return 'var(--text)';
       })
-      .text(d => d.name.length > 35 ? d.name.slice(0, 33) + '\u2026' : d.name);
+      .text(d => d.name.length > 30 ? d.name.slice(0, 28) + '\u2026' : d.name);
 
   } catch (e) {
-    // Sankey layout can fail with certain edge cases
     console.warn('Sankey render error:', e);
   }
+}
+
+function findTaskForAgent(agent) {
+  for (const [id, task] of state.tasks) {
+    if (task.owner && agent.id.includes(task.owner)) return task;
+    if (agent.task && task.subject && fuzzyMatch(agent.task, task.subject)) return task;
+  }
+  return null;
 }
 
 // --- Stats panel ---
@@ -1392,46 +2100,37 @@ function renderStats() {
   const agents = [...state.agents.values()];
   const now = Date.now();
 
-  // Tokens
   const totalTokens = agents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
   const avgTokens = agents.length > 0 ? Math.round(totalTokens / agents.length) : 0;
   document.getElementById('val-tokens').textContent = totalTokens.toLocaleString();
   document.getElementById('sec-tokens').textContent = `avg ${avgTokens.toLocaleString()}/agent`;
   drawSparkline('spark-tokens', state.tokenHistory);
 
-  // Cost
   const totalCost = agents.reduce((s, a) => s + (a.tokensIn * 15 / 1_000_000) + (a.tokensOut * 75 / 1_000_000), 0);
   const avgCost = agents.length > 0 ? totalCost / agents.length : 0;
   document.getElementById('val-cost').textContent = `$${totalCost.toFixed(2)}`;
   document.getElementById('sec-cost').textContent = `avg $${avgCost.toFixed(2)}/agent`;
   drawSparkline('spark-cost', state.costHistory);
 
-  // Agents
   const active = agents.filter(a => a.status === 'running').length;
   const completed = agents.filter(a => a.status === 'success').length;
   const failed = agents.filter(a => a.status === 'error').length;
   document.getElementById('val-agents').textContent = agents.length;
-  document.getElementById('sec-agents').textContent = `${active} active · ${completed} done · ${failed} failed`;
+  document.getElementById('sec-agents').textContent = `${active} active · ${completed} done · ${failed} err`;
   drawSparkline('spark-agents', state.agentCountHistory);
 
-  // Duration
   if (state.sessionStart) {
     const elapsed = (now - state.sessionStart) / 1000;
     document.getElementById('val-duration').textContent = formatDuration(elapsed);
-
     const done = completed + failed;
-    const incomplete = active;
-    if (done > 0 && incomplete > 0) {
-      const avgDur = agents.filter(a => a.status !== 'running')
-        .reduce((s, a) => s + (a.durationMs || 0), 0) / done;
-      const estRemaining = (incomplete / done) * (avgDur / 1000);
-      document.getElementById('sec-duration').textContent = `est. remaining: ${formatDuration(estRemaining)}`;
+    if (done > 0 && active > 0) {
+      const avgDur = agents.filter(a => a.status !== 'running').reduce((s, a) => s + (a.durationMs || 0), 0) / done;
+      document.getElementById('sec-duration').textContent = `est. remaining: ${formatDuration((active / done) * (avgDur / 1000))}`;
     } else {
       document.getElementById('sec-duration').textContent = `est. remaining: —`;
     }
   }
 
-  // Efficiency
   const totalCompleted = agents.filter(a => a.status !== 'running').length;
   if (totalCompleted > 0) {
     const successRate = (completed / totalCompleted * 100).toFixed(0);
@@ -1441,21 +2140,24 @@ function renderStats() {
     document.getElementById('val-efficiency').textContent = '—';
     document.getElementById('efficiency-bar').style.width = '0%';
   }
-
-  // Agent table
-  renderAgentTable(agents);
 }
 
-function renderAgentTable(agents) {
+// --- Sidebar ---
+
+function renderSidebar() {
+  renderAgentTable();
+  renderTasks();
+  renderPlanPanel();
+}
+
+function renderAgentTable() {
+  const agents = [...state.agents.values()];
   const tbody = document.getElementById('agent-tbody');
   const sorted = [...agents].sort((a, b) => {
     let va, vb;
     switch (state.sortCol) {
       case 'agent': va = a.label + a.id; vb = b.label + b.id; break;
-      case 'type': va = a.label; vb = b.label; break;
-      case 'task': va = a.task; vb = b.task; break;
       case 'tokens': va = a.tokensIn + a.tokensOut; vb = b.tokensIn + b.tokensOut; break;
-      case 'cost': va = a.tokensIn * 15 + a.tokensOut * 75; vb = b.tokensIn * 15 + b.tokensOut * 75; break;
       case 'duration': va = a.durationMs || 0; vb = b.durationMs || 0; break;
       case 'status': va = a.status; vb = b.status; break;
       default: va = a.id; vb = b.id;
@@ -1466,42 +2168,136 @@ function renderAgentTable(agents) {
 
   tbody.innerHTML = sorted.map(a => {
     const tokens = a.tokensIn + a.tokensOut;
-    const cost = (a.tokensIn * 15 / 1_000_000) + (a.tokensOut * 75 / 1_000_000);
     const dur = a.durationMs ? formatDuration(a.durationMs / 1000) : '—';
     const statusClass = a.status === 'running' ? 'running' : a.status === 'error' ? 'error' : 'success';
     const selected = state.selectedAgentId === a.id ? 'selected' : '';
+    const taskDesc = a.task ? `<span class="agent-task-desc" title="${esc(a.task)}">${esc(a.task.slice(0, 50))}</span>` : '';
     return `<tr class="${selected}" data-agent-id="${a.id}">
-      <td>${a.label} ${a.id.slice(-6)}</td>
-      <td>${a.label}</td>
-      <td title="${a.task}">${a.task.slice(0, 50)}</td>
+      <td>${a.label} ${a.id.slice(-6)}${taskDesc}</td>
       <td>${tokens.toLocaleString()}</td>
-      <td>$${cost.toFixed(3)}</td>
       <td>${dur}</td>
       <td><span class="badge ${statusClass}">${a.status}</span></td>
     </tr>`;
   }).join('');
 }
 
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  if (state.tasks.size === 0) {
+    list.innerHTML = '<li style="padding:24px;text-align:center;color:var(--text-dim);font-size:12px">No tasks detected</li>';
+    return;
+  }
+
+  list.innerHTML = [...state.tasks.values()].map(t => {
+    const statusIcon = t.status === 'completed' ? '<span style="font-size:8px">&#10003;</span>'
+      : t.status === 'error' ? '<span style="font-size:8px">&#10007;</span>'
+      : t.status === 'in_progress' ? '<span style="font-size:8px">&#9654;</span>'
+      : '';
+    return `<li class="task-item" data-task-id="${t.id}">
+      <div class="task-status-icon ${t.status}">${statusIcon}</div>
+      <div class="task-info">
+        <div class="task-subject">${esc(t.subject)}</div>
+        ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+        ${t.owner ? `<div class="task-owner">${esc(t.owner)}</div>` : ''}
+      </div>
+    </li>`;
+  }).join('');
+}
+
+function renderPlanPanel() {
+  const panel = document.getElementById('plan-panel');
+  if (state.planCycles.length === 0) {
+    panel.innerHTML = '<div class="plan-empty">No plan detected</div>';
+    return;
+  }
+
+  let html = '';
+  state.planCycles.forEach((cycle, i) => {
+    const isHighlighted = state.highlightedPlanCycle === i;
+    const statusBadge = cycle.active
+      ? '<span class="plan-status-badge active">ACTIVE</span>'
+      : '<span class="plan-status-badge inactive">COMPLETED</span>';
+    const base = state.sessionStart || cycle.startTime;
+    const timeRange = `${formatTime(cycle.startTime, base)}${cycle.endTime ? ' — ' + formatTime(cycle.endTime, base) : ' — ongoing'}`;
+
+    html += `<div class="plan-cycle-card ${isHighlighted ? 'highlighted' : ''}" data-cycle-idx="${i}">`;
+    html += `<div class="plan-cycle-header"><span class="plan-cycle-num">Plan ${i + 1}</span>${statusBadge}</div>`;
+    html += `<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">${timeRange}</div>`;
+    if (cycle.content) {
+      html += `<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${esc(cycle.content.filePath)}</div>`;
+      html += `<div class="plan-content" style="max-height:200px">${esc(cycle.content.preview)}</div>`;
+    } else if (cycle.active) {
+      html += '<div style="font-size:10px;color:var(--text-dim)">Waiting for plan content...</div>';
+    }
+    html += '</div>';
+  });
+
+  panel.innerHTML = html;
+}
+
+// --- Info bar ---
+
+function renderInfoBar() {
+  document.getElementById('info-events').textContent = `${state.events.length} events`;
+
+  const planBadge = document.getElementById('info-plan-mode');
+  if (state.planMode) planBadge.classList.add('visible');
+  else planBadge.classList.remove('visible');
+
+  const compBadge = document.getElementById('info-compactions');
+  if (state.compactions.length > 0) {
+    compBadge.textContent = `${state.compactions.length} compaction${state.compactions.length > 1 ? 's' : ''}`;
+    compBadge.classList.add('visible');
+  } else {
+    compBadge.classList.remove('visible');
+  }
+
+  const tasksBadge = document.getElementById('info-tasks');
+  if (state.tasks.size > 0) {
+    const pending = [...state.tasks.values()].filter(t => t.status === 'pending').length;
+    const inProg = [...state.tasks.values()].filter(t => t.status === 'in_progress').length;
+    const parts = [`${state.tasks.size} tasks`];
+    if (pending > 0) parts.push(`${pending} pending`);
+    if (inProg > 0) parts.push(`${inProg} active`);
+    tasksBadge.textContent = parts.join(' · ');
+  } else {
+    tasksBadge.textContent = '0 tasks';
+  }
+
+  const errorBadge = document.getElementById('info-errors');
+  const errorCount = [...state.agents.values()].filter(a => a.status === 'error').length +
+    state.toolCalls.filter(tc => tc.hasError).length;
+  if (errorCount > 0) {
+    errorBadge.textContent = `${errorCount} errors`;
+    errorBadge.classList.add('visible');
+  } else {
+    errorBadge.classList.remove('visible');
+  }
+}
+
 function drawSparkline(id, data) {
   if (data.length < 2) return;
   const svg = d3.select(`#${id}`);
   svg.selectAll('*').remove();
-
   const w = svg.node().parentElement.clientWidth;
-  const h = 24;
+  const h = 20;
   svg.attr('width', w).attr('height', h);
-
-  const x = d3.scaleLinear().domain([0, data.length - 1]).range([0, w]);
-  const y = d3.scaleLinear().domain([0, d3.max(data) || 1]).range([h - 2, 2]);
-
-  const line = d3.line().x((d, i) => x(i)).y(d => y(d)).curve(d3.curveMonotoneX);
+  const xS = d3.scaleLinear().domain([0, data.length - 1]).range([0, w]);
+  const yS = d3.scaleLinear().domain([0, d3.max(data) || 1]).range([h - 2, 2]);
+  const line = d3.line().x((d, i) => xS(i)).y(d => yS(d)).curve(d3.curveMonotoneX);
   svg.append('path').datum(data).attr('d', line);
 }
 
 function formatDuration(seconds) {
   if (seconds < 60) return `${seconds.toFixed(0)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}:${String(m).padStart(2, '0')}:00`;
 }
 
 // --- Cross-panel interactions ---
@@ -1544,7 +2340,6 @@ function openAgentDrawer(agentId) {
   html += `<span class="k">Tools</span><span class="v">${agentTools.length} calls${errorTools.length ? `, ${errorTools.length} errors` : ''}</span>`;
   html += `</div></div>`;
 
-  // Tool calls section (from local state)
   if (agentTools.length > 0) {
     html += `<div class="drawer-section"><h3>Tool Calls</h3><ul class="drawer-tool-list">`;
     for (const tc of agentTools) {
@@ -1557,10 +2352,8 @@ function openAgentDrawer(agentId) {
     html += `</ul></div>`;
   }
 
-  // Transcript loading placeholder
   html += `<div id="drawer-transcript"><div class="drawer-loading">Loading transcript...</div></div>`;
   body.innerHTML = html;
-
   loadTranscriptDetail(agentId, agent);
 }
 
@@ -1570,7 +2363,6 @@ async function loadTranscriptDetail(agentId, agent) {
 
   let transcriptPath = agent.transcriptPath;
 
-  // For sub-agents: try to find transcript via parent's transcript
   if (!transcriptPath && agent.parentId) {
     const parent = state.agents.get(agent.parentId);
     if (parent && parent.transcriptPath) {
@@ -1618,8 +2410,7 @@ function renderTranscriptDetail(data) {
   if (data.usage) {
     const u = data.usage;
     const total = u.input_tokens + u.output_tokens;
-    html += `<div class="drawer-section"><h3>Token Breakdown</h3>`;
-    html += `<div class="drawer-kv">`;
+    html += `<div class="drawer-section"><h3>Token Breakdown</h3><div class="drawer-kv">`;
     html += `<span class="k">Input</span><span class="v">${u.input_tokens.toLocaleString()}</span>`;
     html += `<span class="k">Output</span><span class="v">${u.output_tokens.toLocaleString()}</span>`;
     html += `<span class="k">Cache Write</span><span class="v">${u.cache_creation_input_tokens.toLocaleString()}</span>`;
@@ -1679,6 +2470,142 @@ function renderTranscriptDetail(data) {
   return html || `<div class="drawer-section"><p class="dim" style="padding:8px 0;font-size:11px">No transcript detail available</p></div>`;
 }
 
+// --- Compaction drawer ---
+
+function openCompactionDrawer(idx, compaction) {
+  const drawer = document.getElementById('detail-drawer');
+  const body = document.getElementById('drawer-body');
+  document.getElementById('drawer-title').textContent = `Compaction C${idx + 1}`;
+  drawer.classList.add('open');
+
+  const base = state.sessionStart || compaction.timestamp;
+  let html = `<div class="drawer-section"><h3>Overview</h3><div class="drawer-kv">`;
+  html += `<span class="k">Trigger</span><span class="v">${esc(compaction.trigger)}</span>`;
+  html += `<span class="k">Time</span><span class="v">${formatTime(compaction.timestamp, base)}</span>`;
+  html += `<span class="k">Index</span><span class="v">C${idx + 1} of ${state.compactions.length}</span>`;
+  html += `</div></div>`;
+  html += `<div class="drawer-section" id="compaction-summary-section"><div class="drawer-loading">Loading compaction summary...</div></div>`;
+  body.innerHTML = html;
+
+  // Async load summary from main agent's transcript
+  const mainAgent = state.agents.get('ag_main');
+  if (mainAgent && mainAgent.transcriptPath) {
+    fetch(`/api/compaction-summary?path=${encodeURIComponent(mainAgent.transcriptPath)}&index=${idx}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const section = document.getElementById('compaction-summary-section');
+        if (!section) return;
+        if (data && data.summary) {
+          section.innerHTML = `<h3>Compacted Summary</h3><div class="drawer-prompt">${esc(data.summary)}</div>`;
+        } else {
+          section.innerHTML = `<h3>Compacted Summary</h3><p class="dim" style="padding:8px 0;font-size:11px">Summary not available in transcript</p>`;
+        }
+      })
+      .catch(() => {
+        const section = document.getElementById('compaction-summary-section');
+        if (section) section.innerHTML = `<h3>Compacted Summary</h3><p class="dim" style="padding:8px 0;font-size:11px">Summary pending</p>`;
+      });
+  } else {
+    const section = document.getElementById('compaction-summary-section');
+    if (section) section.innerHTML = `<h3>Compacted Summary</h3><p class="dim" style="padding:8px 0;font-size:11px">No transcript path available</p>`;
+  }
+}
+
+// --- Plan cycle linking ---
+
+function highlightPlanCycle(idx) {
+  if (state.highlightedPlanCycle === idx) {
+    state.highlightedPlanCycle = null;
+    state.highlightTimestamp = null;
+  } else {
+    state.highlightedPlanCycle = idx;
+    const cycle = state.planCycles[idx];
+    if (cycle && cycle.writeTime) state.highlightTimestamp = cycle.writeTime;
+    else state.highlightTimestamp = null;
+    // Switch to Plan tab and scroll card into view
+    switchTab('plan');
+  }
+  render();
+  // Scroll plan card into view
+  setTimeout(() => {
+    const card = document.querySelector(`.plan-cycle-card[data-cycle-idx="${idx}"]`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
+}
+
+function isAgentInPlanCycle(agent, cycleIdx) {
+  if (cycleIdx === null || cycleIdx >= state.planCycles.length) return true;
+  const cycle = state.planCycles[cycleIdx];
+  const start = cycle.startTime;
+  const end = cycle.endTime || Date.now();
+  // Main agent is never dimmed
+  if (agent.id === 'ag_main') return true;
+  return agent.spawnTime >= start && agent.spawnTime <= end;
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sidebar-pane').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+  const tab = document.querySelector(`.sidebar-tab[data-tab="${tabName}"]`);
+  const pane = document.getElementById(`pane-${tabName}`);
+  if (tab) tab.classList.add('active');
+  if (pane) { pane.classList.add('active'); pane.style.display = tabName === 'events' ? 'flex' : 'block'; }
+  state.activeTab = tabName;
+}
+
+// --- Event log ---
+
+function renderEventLog() {
+  const list = document.getElementById('event-log-list');
+  if (!list || state.activeTab !== 'events') return;
+
+  const filterText = (document.getElementById('event-filter-text')?.value || '').toLowerCase();
+  const filterType = document.getElementById('event-filter-type')?.value || '';
+
+  let events = state.events;
+
+  // Filter by selected agent
+  if (state.selectedAgentId) {
+    events = events.filter(e => e.agent_id === state.selectedAgentId || e.spawns_agent_id === state.selectedAgentId);
+  }
+
+  // Filter by type
+  if (filterType) {
+    events = events.filter(e => e.event_type === filterType);
+  }
+
+  // Filter by text
+  if (filterText) {
+    events = events.filter(e => {
+      const searchable = [e.event_type, e.tool_name, e.agent_label, e.tool_params_summary, e.tool_response_summary, e.trigger].filter(Boolean).join(' ').toLowerCase();
+      return searchable.includes(filterText);
+    });
+  }
+
+  // Cap at last 500
+  const capped = events.slice(-500);
+  const base = state.sessionStart || (capped[0]?.timestamp || Date.now());
+
+  list.innerHTML = capped.map(e => {
+    const time = formatTime(e.timestamp, base);
+    const typeClass = e.event_type || '';
+    const agentLabel = e.agent_label || '';
+    const detail = e.tool_name
+      ? `${e.tool_name}${e.tool_params_summary ? ' ' + e.tool_params_summary : ''}${e.tool_response_summary ? ' → ' + e.tool_response_summary : ''}`.slice(0, 100)
+      : e.trigger ? `trigger: ${e.trigger}`
+      : e.task_description ? e.task_description.slice(0, 100)
+      : e.status || '';
+    const highlighted = state.highlightedEventId === e.id ? 'highlighted' : '';
+
+    return `<li class="event-log-item ${highlighted}" data-event-id="${e.id}" data-timestamp="${e.timestamp}">
+      <span class="event-log-time">${time}</span>
+      <span class="event-log-type ${typeClass}">${e.event_type}</span>
+      <span class="event-log-agent">${esc(agentLabel)}</span>
+      <span class="event-log-detail">${esc(detail)}</span>
+    </li>`;
+  }).join('');
+}
+
 function esc(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -1687,9 +2614,152 @@ function closeDrawer() {
   document.getElementById('detail-drawer').classList.remove('open');
 }
 
+// --- Memory button ---
+
+document.getElementById('mem-btn').addEventListener('click', async () => {
+  const drawer = document.getElementById('detail-drawer');
+  const body = document.getElementById('drawer-body');
+  document.getElementById('drawer-title').textContent = 'MEMORY.md';
+  drawer.classList.add('open');
+  body.innerHTML = '<div class="drawer-loading">Loading memory...</div>';
+
+  // Find project path from most recent cwd in events
+  let projectPath = null;
+  for (let i = state.events.length - 1; i >= 0; i--) {
+    if (state.events[i].cwd) {
+      projectPath = state.events[i].cwd;
+      break;
+    }
+  }
+
+  if (!projectPath) {
+    body.innerHTML = '<div class="drawer-section"><p class="dim" style="padding:16px 0;font-size:12px">No project path detected from events</p></div>';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/memory?project=${encodeURIComponent(projectPath)}`);
+    const data = await res.json();
+    if (res.ok) {
+      body.innerHTML = `<div class="drawer-section"><h3>Memory</h3>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">${esc(data.path)}</div>
+        <div class="drawer-prompt">${esc(data.content || '(empty)')}</div>
+      </div>`;
+    } else {
+      body.innerHTML = `<div class="drawer-section"><p class="dim" style="padding:16px 0;font-size:12px">${esc(data.error || 'Not found')}<br><span style="font-size:10px">${esc(data.path || '')}</span></p></div>`;
+    }
+  } catch (err) {
+    body.innerHTML = `<div class="drawer-section"><p class="dim" style="padding:16px 0;font-size:12px">Failed to load: ${esc(err.message)}</p></div>`;
+  }
+});
+
+// --- Event listeners ---
+
+// Sidebar tabs
+document.querySelectorAll('.sidebar-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    switchTab(tab.dataset.tab);
+    if (tab.dataset.tab === 'events') renderEventLog();
+  });
+});
+
+document.querySelectorAll('#agent-table th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (state.sortCol === col) state.sortAsc = !state.sortAsc;
+    else { state.sortCol = col; state.sortAsc = true; }
+    renderAgentTable();
+  });
+});
+
+document.getElementById('agent-tbody').addEventListener('click', (e) => {
+  const row = e.target.closest('tr');
+  if (row) selectAgent(row.dataset.agentId);
+});
+
+// Task list click → highlight owning agent
+document.getElementById('task-list').addEventListener('click', (e) => {
+  const item = e.target.closest('.task-item');
+  if (!item) return;
+  const taskId = item.dataset.taskId;
+  const task = state.tasks.get(taskId);
+  if (!task) return;
+  // Find agent that matches this task
+  for (const agent of state.agents.values()) {
+    if (agent.task && task.subject && fuzzyMatch(agent.task, task.subject)) {
+      selectAgent(agent.id);
+      return;
+    }
+  }
+});
+
+// Plan cycle card click
+document.getElementById('plan-panel').addEventListener('click', (e) => {
+  const card = e.target.closest('.plan-cycle-card');
+  if (card) {
+    const idx = parseInt(card.dataset.cycleIdx, 10);
+    highlightPlanCycle(idx);
+  }
+});
+
+// Event log click → timeline sync
+document.getElementById('event-log-list').addEventListener('click', (e) => {
+  const item = e.target.closest('.event-log-item');
+  if (!item) return;
+  const ts = parseInt(item.dataset.timestamp, 10);
+  const id = item.dataset.eventId;
+  state.highlightTimestamp = ts;
+  state.highlightedEventId = id;
+  render();
+});
+
+// Event log filters
+document.getElementById('event-filter-text').addEventListener('input', () => renderEventLog());
+document.getElementById('event-filter-type').addEventListener('change', () => renderEventLog());
+
+document.getElementById('session-select').addEventListener('change', (e) => {
+  const sid = e.target.value;
+  if (sid) loadSession(sid);
+  else loadSession();
+});
+
+document.querySelectorAll('.panel').forEach(panel => {
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel || e.target.classList.contains('panel-header')) {
+      state.selectedAgentId = null;
+      state.highlightTimestamp = null;
+      state.highlightedEventId = null;
+      state.highlightedPlanCycle = null;
+      closeDrawer();
+      render();
+    }
+  });
+});
+
+document.getElementById('drawer-close').addEventListener('click', () => {
+  state.selectedAgentId = null;
+  closeDrawer();
+  render();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    state.selectedAgentId = null;
+    state.highlightTimestamp = null;
+    state.highlightedEventId = null;
+    state.highlightedPlanCycle = null;
+    closeDrawer();
+    render();
+  }
+  if (e.key === ' ' && !e.target.closest('input, select, textarea')) {
+    e.preventDefault();
+    state.paused = !state.paused;
+    document.getElementById('status-text').textContent = state.paused ? 'Paused' : 'Connected';
+  }
+});
+
 document.addEventListener('agent-select', (e) => {
   const { agentId } = e.detail;
-  // Scroll to agent in table
   if (agentId) {
     const row = document.querySelector(`tr[data-agent-id="${agentId}"]`);
     if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1702,74 +2772,15 @@ function showTooltip(event, html) {
   const tip = document.getElementById('tooltip');
   tip.innerHTML = html;
   tip.style.display = 'block';
-  const x = Math.min(event.pageX + 12, window.innerWidth - 320);
-  const y = Math.min(event.pageY + 12, window.innerHeight - 100);
-  tip.style.left = x + 'px';
-  tip.style.top = y + 'px';
+  const tx = Math.min(event.pageX + 12, window.innerWidth - 320);
+  const ty = Math.min(event.pageY + 12, window.innerHeight - 100);
+  tip.style.left = tx + 'px';
+  tip.style.top = ty + 'px';
 }
 
 function hideTooltip() {
   document.getElementById('tooltip').style.display = 'none';
 }
-
-// --- Event listeners ---
-
-document.getElementById('table-toggle').addEventListener('click', () => {
-  state.tableVisible = !state.tableVisible;
-  document.getElementById('table-wrap').style.display = state.tableVisible ? 'block' : 'none';
-  document.getElementById('table-toggle').textContent = state.tableVisible ? '▾ Agent Table' : '▸ Agent Table';
-});
-
-document.querySelectorAll('#agent-table th').forEach(th => {
-  th.addEventListener('click', () => {
-    const col = th.dataset.col;
-    if (state.sortCol === col) state.sortAsc = !state.sortAsc;
-    else { state.sortCol = col; state.sortAsc = true; }
-    renderStats();
-  });
-});
-
-document.getElementById('agent-tbody').addEventListener('click', (e) => {
-  const row = e.target.closest('tr');
-  if (row) selectAgent(row.dataset.agentId);
-});
-
-document.getElementById('session-select').addEventListener('change', (e) => {
-  const sid = e.target.value;
-  if (sid) loadSession(sid);
-  else loadSession();
-});
-
-// Click empty space to clear selection
-document.querySelectorAll('.panel').forEach(panel => {
-  panel.addEventListener('click', (e) => {
-    if (e.target === panel || e.target.classList.contains('panel-header')) {
-      state.selectedAgentId = null;
-      closeDrawer();
-      render();
-    }
-  });
-});
-
-// Keyboard shortcuts
-document.getElementById('drawer-close').addEventListener('click', () => {
-  state.selectedAgentId = null;
-  closeDrawer();
-  render();
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    state.selectedAgentId = null;
-    closeDrawer();
-    render();
-  }
-  if (e.key === ' ' && !e.target.closest('input, select, textarea')) {
-    e.preventDefault();
-    state.paused = !state.paused;
-    document.getElementById('status-text').textContent = state.paused ? 'Paused' : 'Connected';
-  }
-});
 
 // --- Init ---
 
@@ -1779,7 +2790,6 @@ document.addEventListener('keydown', (e) => {
   connectSSE();
   render();
 
-  // Re-render periodically for running agents (bar growth)
   setInterval(() => {
     if (!state.paused && state.agents.size > 0) render();
   }, 2000);

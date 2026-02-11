@@ -3,7 +3,7 @@ import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync, write
 import { join, dirname } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, listSubagentTranscripts } from './transcript.js';
+import { parseTranscript, listSubagentTranscripts, extractCompactionSummaries } from './transcript.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
@@ -151,8 +151,33 @@ const server = createServer(async (req, res) => {
     return json(res, 200, listSubagentTranscripts(tpath));
   }
 
+  if (req.method === 'GET' && path === '/api/compaction-summary') {
+    const tpath = url.searchParams.get('path');
+    const idx = parseInt(url.searchParams.get('index') || '0', 10);
+    if (!tpath) return json(res, 400, { error: 'Missing path parameter' });
+    if (!isAllowedTranscriptPath(tpath)) return json(res, 403, { error: 'Path outside allowed directory' });
+    const summaries = extractCompactionSummaries(tpath);
+    const entry = summaries.find(s => s.index === idx);
+    if (!entry) return json(res, 404, { error: 'Compaction summary not found' });
+    return json(res, 200, { summary: entry.text, index: entry.index });
+  }
+
   if (req.method === 'GET' && path === '/api/agent-transcripts') {
     return json(res, 200, Object.fromEntries(agentTranscripts));
+  }
+
+  if (req.method === 'GET' && path === '/api/memory') {
+    const project = url.searchParams.get('project');
+    if (!project) return json(res, 400, { error: 'Missing project parameter' });
+    const slug = project.replace(/\//g, '-');
+    const home = process.env.HOME || '/home';
+    const memPath = join(home, '.claude', 'projects', slug, 'memory', 'MEMORY.md');
+    try {
+      const content = readFileSync(memPath, 'utf8');
+      return json(res, 200, { content, path: memPath });
+    } catch {
+      return json(res, 404, { error: 'MEMORY.md not found', path: memPath });
+    }
   }
 
   if (req.method === 'GET' && path === '/') {

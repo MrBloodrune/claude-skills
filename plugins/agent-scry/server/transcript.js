@@ -88,7 +88,8 @@ export function parseTranscript(path) {
     ? ((usage.cache_read_input_tokens / usage.input_tokens) * 100).toFixed(1) + '%'
     : '0%';
 
-  const result = { prompt: prompt ? prompt.slice(0, 2000) : null, messages, usage, files: [...files.entries()].map(([p, ops]) => ({ path: p, ops: [...ops] })), errors };
+  const compactionSummaries = extractCompactionsFromMessages(lines);
+  const result = { prompt: prompt ? prompt.slice(0, 2000) : null, messages, usage, files: [...files.entries()].map(([p, ops]) => ({ path: p, ops: [...ops] })), errors, compactionSummaries };
   cacheStore(path, result);
   return result;
 }
@@ -134,6 +135,34 @@ export function listSubagentTranscripts(sessionTranscriptPath) {
     return scanSubagentDir(altDir);
   }
   return scanSubagentDir(subagentsDir);
+}
+
+function extractCompactionsFromMessages(lines) {
+  const summaries = [];
+  let compactionIdx = 0;
+  for (const line of lines) {
+    let entry;
+    try { entry = JSON.parse(line); } catch { continue; }
+    if (entry.type === 'summary' || entry.type === 'compact') {
+      const text = typeof entry.summary === 'string' ? entry.summary
+        : typeof entry.message?.content === 'string' ? entry.message.content
+        : Array.isArray(entry.message?.content) ? entry.message.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+        : '';
+      if (text) summaries.push({ index: compactionIdx++, text: text.slice(0, 5000) });
+    }
+    if (entry.type === 'system' && typeof entry.message?.content === 'string' && entry.message.content.includes('compacted')) {
+      summaries.push({ index: compactionIdx++, text: entry.message.content.slice(0, 5000) });
+    }
+  }
+  return summaries;
+}
+
+export function extractCompactionSummaries(path) {
+  if (!existsSync(path)) return [];
+  const cached = cachedRead(path);
+  if (cached && cached.compactionSummaries) return cached.compactionSummaries;
+  const lines = readFileSync(path, 'utf8').split('\n').filter(Boolean);
+  return extractCompactionsFromMessages(lines);
 }
 
 function scanSubagentDir(dir) {

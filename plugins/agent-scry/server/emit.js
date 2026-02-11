@@ -2,6 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, renameSync, appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { request } from 'node:http';
+import { extractTaskData, extractPlanData } from './tasks.js';
 
 const BASE_DIR = join(process.env.HOME, '.claude', 'observatory');
 const SESSIONS_DIR = join(BASE_DIR, 'sessions');
@@ -23,9 +24,7 @@ process.stdin.on('end', () => {
   processEvent(payload);
 });
 
-function hash(str) {
-  return createHash('sha256').update(str).digest('hex').slice(0, 12);
-}
+const hash = (str) => createHash('sha256').update(str).digest('hex').slice(0, 12);
 
 function buildEvent(payload) {
   const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || `ses_${Date.now()}`;
@@ -40,11 +39,12 @@ function buildEvent(payload) {
   };
 
   if (eventType === 'session_start') {
-    event.agent_id = 'ag_main';
-    event.agent_label = 'main';
-    event.transcript_path = payload.transcript_path || null;
-    return event;
+    return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null });
   }
+  if (eventType === 'compaction') {
+    return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto' });
+  }
+  if (eventType === 'session_end') { event.agent_id = 'ag_main'; return event; }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
     event.tool_name = payload.tool_name || 'unknown';
@@ -72,6 +72,13 @@ function buildEvent(payload) {
       event.agent_spawn_task = desc;
     }
 
+    if (eventType === 'tool_start') {
+      const td = extractTaskData(event.tool_name, toolInput, null);
+      const pd = extractPlanData(event.tool_name, toolInput);
+      if (td) event.task_data = td;
+      if (pd) event.plan_data = pd;
+    }
+
     if (eventType === 'tool_end') {
       const resp = payload.tool_response || {};
       event.tokens_in = payload.tokens_in || 0;
@@ -81,43 +88,38 @@ function buildEvent(payload) {
       event.has_error = !!(stderr && stderr.trim());
       const preview = stderr.trim() || (typeof resp === 'string' ? resp : (resp.stdout || resp.output || ''));
       event.tool_response_summary = String(preview).slice(0, 80).replace(/\n/g, ' ');
+      const td = extractTaskData(event.tool_name, toolInput, resp);
+      if (td) event.task_data = td;
     }
     return event;
   }
 
   if (eventType === 'agent_complete') {
-    const resolved = matchPending(payload);
-    event.agent_id = resolved?.agent_id || payload.agent_id || 'ag_unknown';
-    event.parent_agent_id = resolved?.parent_agent_id || payload.parent_agent_id || null;
-    event.agent_label = resolved?.agent_label || payload.agent_label || 'unknown';
-    event.task_description = resolved?.task_description || payload.task_description || '';
-    event.task_tags = payload.task_tags || [];
-    event.tokens_in = payload.tokens_in || 0;
-    event.tokens_out = payload.tokens_out || 0;
-    event.duration_ms = payload.duration_ms || 0;
-    event.status = payload.status || 'success';
-    event.contributes_to = payload.contributes_to || [];
-    event.transcript_path = payload.transcript_path || null;
+    const r = matchPending(payload);
+    Object.assign(event, {
+      agent_id: r?.agent_id || payload.agent_id || 'ag_unknown',
+      parent_agent_id: r?.parent_agent_id || payload.parent_agent_id || null,
+      agent_label: r?.agent_label || payload.agent_label || 'unknown',
+      task_description: r?.task_description || payload.task_description || '',
+      task_tags: payload.task_tags || [], tokens_in: payload.tokens_in || 0,
+      tokens_out: payload.tokens_out || 0, duration_ms: payload.duration_ms || 0,
+      status: payload.status || 'success', contributes_to: payload.contributes_to || [],
+      transcript_path: payload.transcript_path || null,
+    });
     return event;
   }
 
   return event;
 }
 
-function summarizeParams(toolInput) {
-  if (!toolInput || typeof toolInput !== 'object') return '';
-  const entries = Object.entries(toolInput).slice(0, 3);
-  return entries.map(([k, v]) => `${k}=${String(v).slice(0, 60)}`).join(' ');
-}
+const summarizeParams = (ti) => (!ti || typeof ti !== 'object') ? '' : Object.entries(ti).slice(0, 3).map(([k, v]) => `${k}=${String(v).slice(0, 60)}`).join(' ');
 
 function matchPending(payload) {
   if (!existsSync(PENDING_DIR)) return null;
   const files = readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
-  if (files.length === 0) return null;
-
-  const agentLabel = payload.agent_label || payload.subagent_type || '';
-  const match = files.find(f => f.startsWith(agentLabel + '-')) || files[files.length - 1];
-
+  if (!files.length) return null;
+  const label = payload.agent_label || payload.subagent_type || '';
+  const match = files.find(f => f.startsWith(label + '-')) || files[files.length - 1];
   const data = JSON.parse(readFileSync(join(PENDING_DIR, match), 'utf8'));
   renameSync(join(PENDING_DIR, match), join(RESOLVED_DIR, match));
   return data;
