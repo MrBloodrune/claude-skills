@@ -110,6 +110,12 @@
       "description": "Unified homelab topology reference with CT assignments, network layout, GPU allocation, and service dependencies",
       "source": "./plugins/homelab-inventory",
       "strict": false
+    },
+    {
+      "name": "ralphinator",
+      "description": "Guided builder for Ralph Wiggum loop prompts — interrogates user, designs phased implementation plans with objective verification, and outputs ready-to-run /ralph-loop prompts",
+      "source": "./plugins/ralphinator",
+      "strict": false
     }
   ]
 }
