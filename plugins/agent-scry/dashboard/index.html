@@ -4,37 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Scry — Observatory</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0b0d1a;
-  --card: rgba(17, 20, 40, 0.85);
-  --card-solid: #111428;
-  --border: rgba(129, 140, 248, 0.1);
-  --border-strong: rgba(129, 140, 248, 0.2);
-  --text: #e0e0f0;
-  --text-dim: #6b7094;
-  --accent: #818cf8;
-  --accent-glow: rgba(129, 140, 248, 0.15);
-  --green: #34d399;
-  --red: #f87171;
-  --amber: #fbbf24;
+  --surface-0: #08080a;
+  --surface-1: #0f0f12;
+  --surface-2: #141418;
+  --surface-3: #1a1a1f;
+  --border: rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.10);
+  --accent: #3b82f6;
+  --text-primary: #e8e8ec;
+  --text-dim: rgba(255,255,255,0.35);
+  --green: #10b981;
+  --red: #f43f5e;
+  --amber: #eab308;
   --purple: #a78bfa;
-  --main-gray: #9ca3af;
-  --glass-bg: rgba(17, 20, 40, 0.7);
-  --glass-blur: 12px;
-  --glow-sm: 0 0 8px rgba(129, 140, 248, 0.15);
-  --glow-md: 0 0 16px rgba(129, 140, 248, 0.12);
+  --tool-read: #60a5fa;
+  --tool-edit: #eab308;
+  --tool-bash: #22c55e;
+  --tool-grep: #8b5cf6;
+  --tool-glob: #6366f1;
+  --tool-write: #10b981;
 }
 
 html, body {
   height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   overflow: hidden;
 }
@@ -47,34 +49,31 @@ html, body {
     "timeline  sidebar"
     "sankey    sidebar"
     "infobar   infobar";
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr 340px;
   grid-template-rows: auto auto 1fr 1fr auto;
   height: 100vh;
-  gap: 1px;
-  background: var(--border);
+  gap: 0;
+  background: var(--surface-0);
 }
 
 /* ═══ HEADER ═══ */
 header {
   grid-area: header;
-  background: var(--card);
-  backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-1);
   padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
 }
 
 header h1 {
+  font-family: 'DM Sans', sans-serif;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  background: linear-gradient(135deg, var(--accent), var(--purple));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 
 header .controls {
@@ -105,11 +104,11 @@ header .status .dot.disconnected {
 }
 
 .header-btn {
-  background: rgba(129, 140, 248, 0.1);
-  border: 1px solid var(--border-strong);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid var(--border-hover);
   color: var(--accent);
   padding: 4px 10px;
-  font-family: inherit;
+  font-family: 'DM Sans', sans-serif;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -119,24 +118,26 @@ header .status .dot.disconnected {
 }
 
 .header-btn:hover {
-  background: rgba(129, 140, 248, 0.2);
-  box-shadow: var(--glow-sm);
+  background: rgba(59, 130, 246, 0.2);
 }
 
 #session-select {
-  background: var(--card-solid);
-  color: var(--text);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   padding: 4px 8px;
-  font-family: inherit;
+  font-family: 'DM Mono', monospace;
   font-size: 11px;
   border-radius: 4px;
 }
 
-/* ═══ GLASS PANELS ═══ */
+/* ═══ PANELS ═══ */
 .panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(59,130,246,0.04) 0%, transparent 50%),
+    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    var(--surface-0);
+  background-size: 100% 100%, 20px 20px, 100% 100%;
   overflow: hidden;
   position: relative;
   border: 1px solid var(--border);
@@ -144,7 +145,8 @@ header .status .dot.disconnected {
 
 .panel-header {
   padding: 8px 16px;
-  background: rgba(17, 20, 40, 0.6);
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -191,8 +193,8 @@ header .status .dot.disconnected {
 
 .tooltip {
   position: absolute;
-  background: rgba(17, 20, 40, 0.95);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  border: 1px solid var(--border-hover);
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 11px;
@@ -200,8 +202,7 @@ header .status .dot.disconnected {
   z-index: 100;
   max-width: 300px;
   line-height: 1.5;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5), var(--glow-sm);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
 }
 
 .tooltip .label { color: var(--accent); font-weight: 600; }
@@ -211,38 +212,62 @@ header .status .dot.disconnected {
 #stats-panel {
   grid-area: stats;
   display: flex;
+  padding: 12px 16px;
+  gap: 12px;
   overflow: hidden;
-  background: var(--card);
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border);
 }
 
 .stats-cards {
   display: flex;
-  gap: 1px;
-  background: var(--border);
+  gap: 12px;
   flex: 1;
 }
 
 .stat-card {
   flex: 1;
-  background: var(--card);
-  padding: 10px 16px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
   min-width: 0;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+
+.stat-card-accent {
+  height: 2px;
+  background: linear-gradient(to right, var(--accent), transparent);
+}
+
+.stat-card-inner {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
 }
 
 .stat-card .title {
-  font-size: 9px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
+  letter-spacing: 0.5px;
   color: var(--text-dim);
   margin-bottom: 4px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .stat-card .value {
+  font-family: 'DM Mono', monospace;
   font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  text-shadow: 0 0 20px var(--accent-glow);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .stat-card .secondary {
@@ -252,20 +277,20 @@ header .status .dot.disconnected {
 }
 
 .stat-card .sparkline {
-  margin-top: 6px;
-  height: 20px;
+  height: 28px;
+  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .stat-card .sparkline path {
   fill: none;
   stroke: var(--accent);
   stroke-width: 1.5;
-  opacity: 0.6;
 }
 
 .progress-bar {
   height: 3px;
-  background: rgba(129, 140, 248, 0.1);
+  background: rgba(255,255,255,0.06);
   border-radius: 2px;
   margin-top: 8px;
   overflow: hidden;
@@ -283,27 +308,25 @@ header .status .dot.disconnected {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  border-left: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
 .sidebar-tabs {
   display: flex;
   border-bottom: 1px solid var(--border);
-  background: rgba(17, 20, 40, 0.6);
+  background: var(--surface-1);
   flex-shrink: 0;
 }
 
 .sidebar-tab {
   flex: 1;
-  padding: 8px 0;
+  padding: 10px 0;
   text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--text-dim);
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -311,65 +334,98 @@ header .status .dot.disconnected {
   user-select: none;
 }
 
-.sidebar-tab:hover { color: var(--text); }
+.sidebar-tab:hover { color: var(--text-primary); }
 .sidebar-tab.active {
-  color: var(--accent);
+  color: var(--text-primary);
   border-bottom-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
+  background: var(--surface-2);
 }
 
-.sidebar-pane { display: none; height: 100%; overflow-y: auto; }
+.sidebar-pane { display: none; height: 100%; overflow-y: auto; padding: 8px; }
 .sidebar-pane.active { display: block; }
 
-/* Agent table in sidebar */
-.agent-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-
-.agent-table th {
-  position: sticky;
-  top: 0;
-  background: var(--card-solid);
-  padding: 6px 10px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
+/* Agent cards in sidebar */
+.agent-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  user-select: none;
-  white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
-.agent-table th:hover { color: var(--text); }
-
-.agent-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
+.agent-card:hover {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
 }
 
-.agent-table tr:hover { background: rgba(129, 140, 248, 0.05); }
-.agent-table tr.selected { background: rgba(129, 140, 248, 0.12); }
+.agent-card.selected {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.06);
+}
 
-.agent-task-desc {
-  display: block;
-  font-size: 9px;
+.agent-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.agent-card-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.agent-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+}
+
+.agent-status-pill .pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.agent-status-pill.running { color: var(--green); }
+.agent-status-pill.running .pill-dot { background: var(--green); }
+.agent-status-pill.success { color: var(--text-dim); }
+.agent-status-pill.success .pill-dot { background: rgba(255,255,255,0.25); }
+.agent-status-pill.error { color: var(--red); }
+.agent-status-pill.error .pill-dot { background: var(--red); }
+
+.agent-card-meta {
+  display: flex;
+  gap: 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
   color: var(--text-dim);
+}
+
+.agent-card-task {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  white-space: nowrap;
 }
 
 .badge {
@@ -381,9 +437,9 @@ header .status .dot.disconnected {
   letter-spacing: 0.3px;
 }
 
-.badge.running { background: rgba(129, 140, 248, 0.15); color: var(--accent); }
-.badge.success { background: rgba(52, 211, 153, 0.15); color: var(--green); }
-.badge.error { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+.badge.running { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+.badge.success { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+.badge.error { background: rgba(244, 63, 94, 0.15); color: var(--red); }
 
 /* Task list in sidebar */
 .task-list { list-style: none; padding: 8px; }
@@ -399,7 +455,7 @@ header .status .dot.disconnected {
   border: 1px solid transparent;
 }
 
-.task-item:hover { background: rgba(129, 140, 248, 0.06); border-color: var(--border); }
+.task-item:hover { background: rgba(59, 130, 246, 0.06); border-color: var(--border); }
 
 .task-status-icon {
   flex-shrink: 0;
@@ -415,11 +471,11 @@ header .status .dot.disconnected {
 
 .task-status-icon.pending { border: 1.5px solid var(--text-dim); color: var(--text-dim); }
 .task-status-icon.in_progress { border: 1.5px solid var(--accent); color: var(--accent); animation: pulse 1.5s infinite; }
-.task-status-icon.completed { background: var(--green); color: var(--bg); }
-.task-status-icon.error { background: var(--red); color: var(--bg); }
+.task-status-icon.completed { background: var(--green); color: var(--surface-0); }
+.task-status-icon.error { background: var(--red); color: var(--surface-0); }
 
 .task-info { flex: 1; min-width: 0; }
-.task-subject { font-size: 11px; color: var(--text); font-weight: 500; }
+.task-subject { font-size: 11px; color: var(--text-primary); font-weight: 500; }
 .task-desc { font-size: 9px; color: var(--text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-owner { font-size: 9px; color: var(--accent); margin-top: 2px; }
 
@@ -437,7 +493,7 @@ header .status .dot.disconnected {
   margin-bottom: 12px;
 }
 .plan-status-badge.active { background: rgba(167, 139, 250, 0.15); color: var(--purple); }
-.plan-status-badge.inactive { background: rgba(107, 112, 148, 0.1); color: var(--text-dim); }
+.plan-status-badge.inactive { background: rgba(255, 255, 255, 0.04); color: var(--text-dim); }
 
 .plan-content {
   background: rgba(0,0,0,0.2);
@@ -446,7 +502,7 @@ header .status .dot.disconnected {
   padding: 12px;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--text);
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 400px;
@@ -465,8 +521,8 @@ header .status .dot.disconnected {
 .sankey-link:hover { stroke-opacity: 0.7; }
 .sankey-link.dimmed { stroke-opacity: 0.06; }
 .sankey-node rect { cursor: pointer; transition: opacity 0.15s; }
-.sankey-node text { font-size: 11px; fill: var(--text); font-weight: 500; }
-.sankey-node text.sankey-label-bg { stroke: var(--bg); stroke-width: 4; stroke-linejoin: round; fill: var(--bg); }
+.sankey-node text { font-size: 11px; fill: var(--text-primary); font-weight: 500; }
+.sankey-node text.sankey-label-bg { stroke: var(--surface-0); stroke-width: 4; stroke-linejoin: round; fill: var(--surface-0); }
 .sankey-node:hover rect { stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
 .sankey-node:hover text { fill: #fff; }
 
@@ -483,7 +539,7 @@ header .status .dot.disconnected {
 .plan-mode-region { fill: rgba(167, 139, 250, 0.06); stroke: rgba(167, 139, 250, 0.2); stroke-dasharray: 4,4; }
 .plan-mode-label { font-size: 9px; fill: var(--purple); font-weight: 600; letter-spacing: 1px; opacity: 0.7; }
 
-.hover-line { stroke: rgba(129, 140, 248, 0.4); stroke-width: 1; stroke-dasharray: 3,3; pointer-events: none; }
+.hover-line { stroke: rgba(59, 130, 246, 0.4); stroke-width: 1; stroke-dasharray: 3,3; pointer-events: none; }
 .hover-label { font-size: 9px; fill: var(--accent); pointer-events: none; }
 
 @keyframes dash {
@@ -502,8 +558,8 @@ header .status .dot.disconnected {
   right: -440px;
   width: 420px;
   height: 100vh;
-  background: var(--card-solid);
-  border-left: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  border-left: 1px solid var(--border-hover);
   z-index: 200;
   display: flex;
   flex-direction: column;
@@ -539,7 +595,7 @@ header .status .dot.disconnected {
   line-height: 1;
 }
 
-.drawer-close:hover { color: var(--text); }
+.drawer-close:hover { color: var(--text-primary); }
 
 .drawer-body {
   flex: 1;
@@ -569,7 +625,7 @@ header .status .dot.disconnected {
 }
 
 .drawer-kv .k { color: var(--text-dim); }
-.drawer-kv .v { color: var(--text); word-break: break-all; }
+.drawer-kv .v { color: var(--text-primary); word-break: break-all; }
 
 .drawer-prompt {
   font-size: 11px;
@@ -578,7 +634,7 @@ header .status .dot.disconnected {
   word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
-  color: var(--text);
+  color: var(--text-primary);
   background: rgba(0,0,0,0.2);
   padding: 8px;
   border-radius: 4px;
@@ -609,8 +665,8 @@ header .status .dot.disconnected {
 .file-op.edit { color: var(--amber); }
 
 .drawer-error {
-  background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.2);
+  background: rgba(244,63,94,0.08);
+  border: 1px solid rgba(244,63,94,0.2);
   border-radius: 4px;
   padding: 6px 8px;
   margin-bottom: 6px;
@@ -634,7 +690,7 @@ header .status .dot.disconnected {
   border-radius: 3px;
   overflow: hidden;
   margin: 6px 0;
-  background: rgba(129, 140, 248, 0.08);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .token-bar > div { height: 100%; }
@@ -650,8 +706,9 @@ header .status .dot.disconnected {
   align-items: center;
   gap: 16px;
   padding: 5px 16px;
-  background: var(--card);
+  background: var(--surface-1);
   border-top: 1px solid var(--border);
+  font-family: 'DM Mono', monospace;
   font-size: 10px;
   color: var(--text-dim);
 }
@@ -675,7 +732,7 @@ header .status .dot.disconnected {
 .info-badge.plan-mode.visible { display: inline-flex; }
 
 .info-badge.error-count {
-  background: rgba(248, 113, 113, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--red);
   display: none;
 }
@@ -683,12 +740,12 @@ header .status .dot.disconnected {
 .info-badge.error-count.visible { display: inline-flex; }
 
 .info-badge.tasks-count {
-  background: rgba(129, 140, 248, 0.08);
+  background: rgba(59, 130, 246, 0.08);
   color: var(--accent);
 }
 
 .info-badge.compaction-count {
-  background: rgba(251, 191, 36, 0.12);
+  background: rgba(234, 179, 8, 0.12);
   color: var(--amber);
   display: none;
 }
@@ -705,11 +762,11 @@ header .status .dot.disconnected {
 }
 
 .event-log-controls input, .event-log-controls select {
-  background: var(--card-solid);
-  color: var(--text);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border-hover);
   padding: 4px 8px;
-  font-family: inherit;
+  font-family: 'DM Sans', sans-serif;
   font-size: 10px;
   border-radius: 4px;
 }
@@ -733,19 +790,19 @@ header .status .dot.disconnected {
   transition: background 0.1s;
 }
 
-.event-log-item:hover { background: rgba(129, 140, 248, 0.06); }
-.event-log-item.highlighted { background: rgba(129, 140, 248, 0.15); border-left: 2px solid var(--accent); }
+.event-log-item:hover { background: rgba(59, 130, 246, 0.06); }
+.event-log-item.highlighted { background: rgba(59, 130, 246, 0.15); border-left: 2px solid var(--accent); }
 
 .event-log-time { color: var(--text-dim); font-size: 9px; white-space: nowrap; min-width: 40px; }
 .event-log-type { font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 2px; white-space: nowrap; }
-.event-log-type.tool_start { background: rgba(129, 140, 248, 0.12); color: var(--accent); }
-.event-log-type.tool_end { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+.event-log-type.tool_start { background: rgba(59, 130, 246, 0.12); color: var(--accent); }
+.event-log-type.tool_end { background: rgba(16, 185, 129, 0.12); color: var(--green); }
 .event-log-type.agent_complete { background: rgba(167, 139, 250, 0.12); color: var(--purple); }
-.event-log-type.compaction { background: rgba(251, 191, 36, 0.12); color: var(--amber); }
-.event-log-type.session_start, .event-log-type.session_end { background: rgba(107, 112, 148, 0.1); color: var(--text-dim); }
+.event-log-type.compaction { background: rgba(234, 179, 8, 0.12); color: var(--amber); }
+.event-log-type.session_start, .event-log-type.session_end { background: rgba(255, 255, 255, 0.04); color: var(--text-dim); }
 .event-log-type.agent_spawn { background: rgba(249, 115, 22, 0.12); color: #f97316; }
 .event-log-agent { color: var(--text-dim); white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis; }
-.event-log-detail { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-log-detail { color: var(--text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ═══ COMPACTION MARKERS ═══ */
 .compaction-marker { stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 5,3; cursor: pointer; }
@@ -759,7 +816,7 @@ header .status .dot.disconnected {
 .highlight-label { font-size: 9px; fill: var(--accent); font-weight: 700; pointer-events: none; }
 
 /* ═══ COMPACTION EPOCH ═══ */
-.compaction-epoch { fill: rgba(251, 191, 36, 0.03); }
+.compaction-epoch { fill: rgba(234, 179, 8, 0.03); }
 
 /* ═══ PLAN CYCLES ═══ */
 .plan-cycle-card {
@@ -772,8 +829,8 @@ header .status .dot.disconnected {
   transition: all 0.15s;
 }
 
-.plan-cycle-card:hover { border-color: var(--purple); background: rgba(167, 139, 250, 0.06); }
-.plan-cycle-card.highlighted { border-color: var(--purple); background: rgba(167, 139, 250, 0.1); box-shadow: 0 0 8px rgba(167, 139, 250, 0.15); }
+.plan-cycle-card:hover { border-color: var(--purple); background: rgba(167, 139, 250, 0.04); }
+.plan-cycle-card.highlighted { border-color: var(--purple); background: rgba(167, 139, 250, 0.08); }
 
 .plan-cycle-header {
   display: flex;
@@ -814,33 +871,58 @@ header .status .dot.disconnected {
   <div id="stats-panel">
     <div class="stats-cards">
       <div class="stat-card">
-        <div class="title">Tokens</div>
-        <div class="value" id="val-tokens">0</div>
-        <div class="secondary" id="sec-tokens">avg 0/agent</div>
-        <div class="sparkline"><svg id="spark-tokens"></svg></div>
+        <div class="stat-card-accent"></div>
+        <div class="stat-card-inner">
+          <div>
+            <div class="title">Tokens</div>
+            <div class="value" id="val-tokens">0</div>
+            <div class="secondary" id="sec-tokens">avg 0/agent</div>
+          </div>
+          <div class="sparkline"><svg id="spark-tokens"></svg></div>
+        </div>
       </div>
       <div class="stat-card">
-        <div class="title">Cost</div>
-        <div class="value" id="val-cost">$0.00</div>
-        <div class="secondary" id="sec-cost">avg $0.00/agent</div>
-        <div class="sparkline"><svg id="spark-cost"></svg></div>
+        <div class="stat-card-accent"></div>
+        <div class="stat-card-inner">
+          <div>
+            <div class="title">Cost</div>
+            <div class="value" id="val-cost">$0.00</div>
+            <div class="secondary" id="sec-cost">avg $0.00/agent</div>
+          </div>
+          <div class="sparkline"><svg id="spark-cost"></svg></div>
+        </div>
       </div>
       <div class="stat-card">
-        <div class="title">Agents</div>
-        <div class="value" id="val-agents">0</div>
-        <div class="secondary" id="sec-agents">0 active</div>
-        <div class="sparkline"><svg id="spark-agents"></svg></div>
+        <div class="stat-card-accent"></div>
+        <div class="stat-card-inner">
+          <div>
+            <div class="title">Agents</div>
+            <div class="value" id="val-agents">0</div>
+            <div class="secondary" id="sec-agents">0 active</div>
+          </div>
+          <div class="sparkline"><svg id="spark-agents"></svg></div>
+        </div>
       </div>
       <div class="stat-card">
-        <div class="title">Duration</div>
-        <div class="value" id="val-duration">0s</div>
-        <div class="secondary" id="sec-duration">est. remaining: —</div>
+        <div class="stat-card-accent"></div>
+        <div class="stat-card-inner">
+          <div>
+            <div class="title">Duration</div>
+            <div class="value" id="val-duration">0s</div>
+            <div class="secondary" id="sec-duration">est. remaining: —</div>
+          </div>
+        </div>
       </div>
       <div class="stat-card">
-        <div class="title">Efficiency</div>
-        <div class="value" id="val-efficiency">—</div>
-        <div class="secondary" id="sec-efficiency">&nbsp;</div>
-        <div class="progress-bar"><div class="fill" id="efficiency-bar" style="width:0%"></div></div>
+        <div class="stat-card-accent"></div>
+        <div class="stat-card-inner">
+          <div>
+            <div class="title">Efficiency</div>
+            <div class="value" id="val-efficiency">—</div>
+            <div class="secondary" id="sec-efficiency">&nbsp;</div>
+            <div class="progress-bar"><div class="fill" id="efficiency-bar" style="width:0%"></div></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -869,17 +951,7 @@ header .status .dot.disconnected {
     </div>
     <div class="sidebar-content">
       <div class="sidebar-pane active" id="pane-agents">
-        <table class="agent-table" id="agent-table">
-          <thead>
-            <tr>
-              <th data-col="agent">Agent</th>
-              <th data-col="tokens">Tokens</th>
-              <th data-col="duration">Dur</th>
-              <th data-col="status">Status</th>
-            </tr>
-          </thead>
-          <tbody id="agent-tbody"></tbody>
-        </table>
+        <div id="agent-cards-container"></div>
       </div>
       <div class="sidebar-pane" id="pane-tasks">
         <ul class="task-list" id="task-list"></ul>
@@ -996,6 +1068,7 @@ function ingestEvent(evt) {
         label: 'main',
         task: 'Root session',
         tags: [],
+        model: null,
         spawnTime: evt.timestamp,
         endTime: null,
         tokensIn: 0,
@@ -1020,6 +1093,7 @@ function ingestEvent(evt) {
         label: evt.agent_spawn_label || evt.agent_label || 'unknown',
         task: evt.agent_spawn_task || evt.task_description || '',
         tags: evt.task_tags || [],
+        model: evt.agent_spawn_model || evt.model || null,
         spawnTime: evt.timestamp,
         endTime: null,
         tokensIn: 0,
@@ -1037,7 +1111,7 @@ function ingestEvent(evt) {
     if (!state.agents.has(agentId)) {
       state.agents.set(agentId, {
         id: agentId, parentId: null, label: evt.agent_label || 'main',
-        task: '', tags: [], spawnTime: evt.timestamp, endTime: null,
+        task: '', tags: [], model: null, spawnTime: evt.timestamp, endTime: null,
         tokensIn: 0, tokensOut: 0, durationMs: 0, status: 'running',
         tools: [], contributesTo: [],
       });
@@ -1077,6 +1151,7 @@ function ingestEvent(evt) {
       agent.status = evt.status || 'success';
       agent.contributesTo = evt.contributes_to || [];
       agent.tags = evt.task_tags || agent.tags;
+      if (evt.model && !agent.model) agent.model = evt.model;
       if (evt.transcript_path) agent.transcriptPath = evt.transcript_path;
     }
   }
@@ -1319,7 +1394,7 @@ function renderTimeline() {
     .domain([xMin, xMax + (xMax - xMin) * 0.05])
     .range([margin.left, width - margin.right]);
 
-  const rowH = 40;
+  const rowH = 38;
   const maxH = Math.min(visibleAgents.length * rowH + margin.top + margin.bottom, window.innerHeight * 0.5);
   const contentH = margin.top + visibleAgents.length * rowH + margin.bottom;
   const height = Math.max(contentH, 100);
@@ -1330,16 +1405,16 @@ function renderTimeline() {
   const g = svg.append('g');
 
   const agentColors = {
-    main: '#9ca3af', Explore: '#818cf8', Plan: '#a78bfa',
-    Bash: '#34d399', 'general-purpose': '#fbbf24',
+    main: '#9ca3af', Explore: '#60a5fa', Plan: '#a78bfa',
+    Bash: '#22c55e', 'general-purpose': '#eab308',
   };
 
   const toolColors = {
-    Read: '#60a5fa', Write: '#34d399', Edit: '#fbbf24', Glob: '#818cf8',
-    Grep: '#c084fc', Bash: '#4ade80', Task: '#f97316', NotebookEdit: '#fb923c',
+    Read: '#60a5fa', Write: '#10b981', Edit: '#eab308', Glob: '#6366f1',
+    Grep: '#8b5cf6', Bash: '#22c55e', Task: '#f97316', NotebookEdit: '#fb923c',
     WebFetch: '#22d3ee', WebSearch: '#2dd4bf', Skill: '#e879f9',
     EnterPlanMode: '#a78bfa', ExitPlanMode: '#a78bfa',
-    TaskCreate: '#818cf8', TaskUpdate: '#818cf8', TaskList: '#818cf8',
+    TaskCreate: '#6366f1', TaskUpdate: '#6366f1', TaskList: '#6366f1',
   };
   const defaultToolColor = '#94a3b8';
 
@@ -1430,7 +1505,7 @@ function renderTimeline() {
       const tcStart = x(tc.startTime);
       const tcEnd = x(tc.endTime || now);
       const tcW = Math.max(tcEnd - tcStart, 3);
-      const tcColor = tc.hasError ? '#f87171' : (toolColors[tc.toolName] || defaultToolColor);
+      const tcColor = tc.hasError ? '#f43f5e' : (toolColors[tc.toolName] || defaultToolColor);
       g.append('rect')
         .attr('class', `tool-segment ${isDimmed ? 'dimmed' : ''}`)
         .attr('x', tcStart).attr('y', barY + 1)
@@ -1763,7 +1838,9 @@ function getDepth(agentId) {
 function agentTooltipHtml(a) {
   const tokens = a.tokensIn + a.tokensOut;
   const dur = a.endTime ? ((a.endTime - a.spawnTime) / 1000).toFixed(1) + 's' : 'running';
-  let tip = `<span class="label">${a.label}</span> ${a.id.slice(-8)}<br>`;
+  let tip = `<span class="label">${a.label}</span> ${a.id.slice(-8)}`;
+  if (a.model) tip += ` <span class="dim">[${a.model}]</span>`;
+  tip += '<br>';
   if (a.task) tip += `<span class="dim">${a.task.slice(0, 80)}</span><br>`;
   tip += `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>Status: ${a.status}`;
   // Task associations
@@ -2029,7 +2106,7 @@ function renderSankey() {
         return 'var(--green)';
       }
       if (d.label) {
-        const colors = { main: '#9ca3af', Explore: '#818cf8', Plan: '#a78bfa', Bash: '#34d399', 'general-purpose': '#fbbf24' };
+        const colors = { main: '#9ca3af', Explore: '#60a5fa', Plan: '#a78bfa', Bash: '#22c55e', 'general-purpose': '#eab308' };
         return colors[d.label] || '#9ca3af';
       }
       return 'var(--text-dim)';
@@ -2070,14 +2147,14 @@ function renderSankey() {
         if (d.column === 1 && d.taskStatus) {
           if (d.taskStatus === 'error') return 'var(--red)';
           if (d.taskStatus === 'completed') return 'var(--green)';
-          return 'var(--text)';
+          return 'var(--text-primary)';
         }
         if (d.column === 3) {
           if (d.status === 'error') return 'var(--red)';
           if (d.status === 'running') return 'var(--accent)';
           return 'var(--green)';
         }
-        return 'var(--text)';
+        return 'var(--text-primary)';
       })
       .text(d => d.name.length > 30 ? d.name.slice(0, 28) + '\u2026' : d.name);
 
@@ -2152,7 +2229,7 @@ function renderSidebar() {
 
 function renderAgentTable() {
   const agents = [...state.agents.values()];
-  const tbody = document.getElementById('agent-tbody');
+  const container = document.getElementById('agent-cards-container');
   const sorted = [...agents].sort((a, b) => {
     let va, vb;
     switch (state.sortCol) {
@@ -2166,18 +2243,24 @@ function renderAgentTable() {
     return state.sortAsc ? va - vb : vb - va;
   });
 
-  tbody.innerHTML = sorted.map(a => {
+  container.innerHTML = sorted.map(a => {
     const tokens = a.tokensIn + a.tokensOut;
     const dur = a.durationMs ? formatDuration(a.durationMs / 1000) : '—';
     const statusClass = a.status === 'running' ? 'running' : a.status === 'error' ? 'error' : 'success';
     const selected = state.selectedAgentId === a.id ? 'selected' : '';
-    const taskDesc = a.task ? `<span class="agent-task-desc" title="${esc(a.task)}">${esc(a.task.slice(0, 50))}</span>` : '';
-    return `<tr class="${selected}" data-agent-id="${a.id}">
-      <td>${a.label} ${a.id.slice(-6)}${taskDesc}</td>
-      <td>${tokens.toLocaleString()}</td>
-      <td>${dur}</td>
-      <td><span class="badge ${statusClass}">${a.status}</span></td>
-    </tr>`;
+    const statusLabel = a.status === 'running' ? 'Active' : a.status === 'error' ? 'Error' : 'Done';
+    const modelTag = a.model ? ` <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);opacity:0.7;margin-left:4px;padding:1px 5px;background:rgba(255,255,255,0.04);border-radius:3px">${esc(a.model)}</span>` : '';
+    return `<div class="agent-card ${selected}" data-agent-id="${a.id}">
+      <div class="agent-card-top">
+        <span class="agent-card-name">${a.label} ${a.id.slice(-6)}${modelTag}</span>
+        <span class="agent-status-pill ${statusClass}"><span class="pill-dot"></span>${statusLabel}</span>
+      </div>
+      <div class="agent-card-meta">
+        <span>${tokens.toLocaleString()} tok</span>
+        <span>${dur}</span>
+      </div>
+      ${a.task ? `<div class="agent-card-task" title="${esc(a.task)}">${esc(a.task.slice(0, 60))}</div>` : ''}
+    </div>`;
   }).join('');
 }
 
@@ -2279,8 +2362,8 @@ function drawSparkline(id, data) {
   if (data.length < 2) return;
   const svg = d3.select(`#${id}`);
   svg.selectAll('*').remove();
-  const w = svg.node().parentElement.clientWidth;
-  const h = 20;
+  const w = 64;
+  const h = 28;
   svg.attr('width', w).attr('height', h);
   const xS = d3.scaleLinear().domain([0, data.length - 1]).range([0, w]);
   const yS = d3.scaleLinear().domain([0, d3.max(data) || 1]).range([h - 2, 2]);
@@ -2333,6 +2416,7 @@ function openAgentDrawer(agentId) {
 
   let html = `<div class="drawer-section"><h3>Overview</h3><div class="drawer-kv">`;
   html += `<span class="k">Status</span><span class="v"><span class="badge ${agent.status === 'running' ? 'running' : agent.status === 'error' ? 'error' : 'success'}">${agent.status}</span></span>`;
+  if (agent.model) html += `<span class="k">Model</span><span class="v">${esc(agent.model)}</span>`;
   html += `<span class="k">Task</span><span class="v">${esc(agent.task || '—')}</span>`;
   html += `<span class="k">Duration</span><span class="v">${dur}</span>`;
   html += `<span class="k">Tokens</span><span class="v">${tokens.toLocaleString()} (in: ${agent.tokensIn.toLocaleString()}, out: ${agent.tokensOut.toLocaleString()})</span>`;
@@ -2663,18 +2747,9 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
   });
 });
 
-document.querySelectorAll('#agent-table th').forEach(th => {
-  th.addEventListener('click', () => {
-    const col = th.dataset.col;
-    if (state.sortCol === col) state.sortAsc = !state.sortAsc;
-    else { state.sortCol = col; state.sortAsc = true; }
-    renderAgentTable();
-  });
-});
-
-document.getElementById('agent-tbody').addEventListener('click', (e) => {
-  const row = e.target.closest('tr');
-  if (row) selectAgent(row.dataset.agentId);
+document.getElementById('agent-cards-container').addEventListener('click', (e) => {
+  const card = e.target.closest('.agent-card');
+  if (card) selectAgent(card.dataset.agentId);
 });
 
 // Task list click → highlight owning agent
@@ -2761,8 +2836,8 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('agent-select', (e) => {
   const { agentId } = e.detail;
   if (agentId) {
-    const row = document.querySelector(`tr[data-agent-id="${agentId}"]`);
-    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const card = document.querySelector(`.agent-card[data-agent-id="${agentId}"]`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 });
 

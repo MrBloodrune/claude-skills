@@ -58,18 +58,21 @@ function buildEvent(payload) {
       const desc = toolInput.description || toolInput.prompt || '';
       const agentType = toolInput.subagent_type || 'general-purpose';
       const agentId = `ag_${hash(sessionId + now + desc)}`;
+      const model = toolInput.model || null;
       const pendingFile = join(PENDING_DIR, `${agentType}-${agentId}.json`);
       writeFileSync(pendingFile, JSON.stringify({
         agent_id: agentId,
         parent_agent_id: event.agent_id,
         agent_label: agentType,
         task_description: desc,
+        model,
         timestamp: now,
         session_id: event.session_id,
       }));
       event.spawns_agent_id = agentId;
       event.agent_spawn_label = agentType;
       event.agent_spawn_task = desc;
+      if (model) event.agent_spawn_model = model;
     }
 
     if (eventType === 'tool_start') {
@@ -101,6 +104,7 @@ function buildEvent(payload) {
       parent_agent_id: r?.parent_agent_id || payload.parent_agent_id || null,
       agent_label: r?.agent_label || payload.agent_label || 'unknown',
       task_description: r?.task_description || payload.task_description || '',
+      model: r?.model || payload.model || null,
       task_tags: payload.task_tags || [], tokens_in: payload.tokens_in || 0,
       tokens_out: payload.tokens_out || 0, duration_ms: payload.duration_ms || 0,
       status: payload.status || 'success', contributes_to: payload.contributes_to || [],

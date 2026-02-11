@@ -56,8 +56,8 @@ async function toolCall(agentId, label, tool, params, opts = {}) {
   await sleep(80);
 }
 
-async function spawnAgent(id, parentId, label, task, tags = []) {
-  await post(evt({ event_type: 'agent_spawn', agent_id: id, parent_agent_id: parentId, agent_label: label, task_description: task, task_tags: tags }));
+async function spawnAgent(id, parentId, label, task, tags = [], model = null) {
+  await post(evt({ event_type: 'agent_spawn', agent_id: id, parent_agent_id: parentId, agent_label: label, task_description: task, task_tags: tags, ...(model ? { agent_spawn_model: model } : {}) }));
   await sleep(150);
 }
 
@@ -123,10 +123,10 @@ async function run() {
   }
 
   // Spawn explore agents
-  await spawnAgent('ag_explore_01', 'ag_main', 'Explore', 'Search codebase for authentication patterns', ['search', 'auth']);
-  console.log('  spawn: ag_explore_01 (Explore)');
-  await spawnAgent('ag_explore_02', 'ag_main', 'Explore', 'Find all API endpoint definitions', ['search', 'api']);
-  console.log('  spawn: ag_explore_02 (Explore)');
+  await spawnAgent('ag_explore_01', 'ag_main', 'Explore', 'Search codebase for authentication patterns', ['search', 'auth'], 'haiku');
+  console.log('  spawn: ag_explore_01 (Explore, haiku)');
+  await spawnAgent('ag_explore_02', 'ag_main', 'Explore', 'Find all API endpoint definitions', ['search', 'api'], 'haiku');
+  console.log('  spawn: ag_explore_02 (Explore, haiku)');
 
   // Interleaved explore tool calls (7 each for more volume)
   const e1Tools = [
@@ -177,8 +177,8 @@ async function run() {
   console.log('  TaskUpdate: tasks 1,2 completed');
 
   // Spawn plan agent
-  await spawnAgent('ag_plan_01', 'ag_main', 'Plan', 'Design authentication middleware architecture', ['auth', 'design']);
-  console.log('  spawn: ag_plan_01 (Plan)');
+  await spawnAgent('ag_plan_01', 'ag_main', 'Plan', 'Design authentication middleware architecture', ['auth', 'design'], 'sonnet');
+  console.log('  spawn: ag_plan_01 (Plan, sonnet)');
 
   // Plan agent tool calls
   await toolCall('ag_plan_01', 'Plan', 'Read', 'file_path=src/auth/middleware.ts', { summary: 'Read current middleware', tokIn: 3000, tokOut: 500 });
@@ -237,10 +237,10 @@ async function run() {
   }
 
   // Spawn implementation agents
-  await spawnAgent('ag_impl_01', 'ag_main', 'general-purpose', 'Implement JWT middleware', ['auth', 'impl']);
-  await spawnAgent('ag_impl_02', 'ag_main', 'general-purpose', 'Write auth unit tests', ['auth', 'test']);
-  await spawnAgent('ag_impl_03', 'ag_main', 'general-purpose', 'Update route handlers', ['auth', 'routes']);
-  await spawnAgent('ag_test_01', 'ag_main', 'Bash', 'Run integration tests', ['test', 'integration']);
+  await spawnAgent('ag_impl_01', 'ag_main', 'general-purpose', 'Implement JWT middleware', ['auth', 'impl'], 'sonnet');
+  await spawnAgent('ag_impl_02', 'ag_main', 'general-purpose', 'Write auth unit tests', ['auth', 'test'], 'sonnet');
+  await spawnAgent('ag_impl_03', 'ag_main', 'general-purpose', 'Update route handlers', ['auth', 'routes'], 'opus');
+  await spawnAgent('ag_test_01', 'ag_main', 'Bash', 'Run integration tests', ['test', 'integration'], 'haiku');
   console.log('  spawn: ag_impl_01, ag_impl_02, ag_impl_03, ag_test_01');
 
   // Interleaved implementation tool calls (expanded for volume)
@@ -384,8 +384,8 @@ async function run() {
   });
 
   // Spawn retry test agent
-  await spawnAgent('ag_test_02', 'ag_main', 'Bash', 'Retry integration tests', ['test', 'retry']);
-  console.log('  spawn: ag_test_02 (Bash)');
+  await spawnAgent('ag_test_02', 'ag_main', 'Bash', 'Retry integration tests', ['test', 'retry'], 'haiku');
+  console.log('  spawn: ag_test_02 (Bash, haiku)');
 
   await toolCall('ag_test_02', 'Bash', 'Bash', 'command=npm run test:integration', {
     summary: 'All 47 tests passed', cwd: '/project',
