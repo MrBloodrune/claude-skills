@@ -1,6 +1,6 @@
 {
   "name": "secrets-management",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Manage secrets with HashiCorp Vault AppRole authentication and environment variable injection",
   "author": {
     "name": "MrBloodrune"

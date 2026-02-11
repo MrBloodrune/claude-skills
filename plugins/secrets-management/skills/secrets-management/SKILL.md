@@ -147,6 +147,12 @@ curl -sk https://vault.mrbloodrune.dev/v1/sys/health
 # If sealed, unseal keys are in admin repo
 ```
 
+## Interactive Operations
+
+For interactive Vault operations (reading secrets, rotating IDs, health checks), the **vault-agent** is available. It authenticates with Vault and performs operations safely with automatic secret masking.
+
+Trigger it by asking to "check vault", "rotate secret ID", "read vault secrets", or similar.
+
 ## Additional Resources
 
 For detailed Vault configuration and AppRole patterns, see:
