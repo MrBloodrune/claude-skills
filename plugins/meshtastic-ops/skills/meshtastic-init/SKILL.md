@@ -3,218 +3,311 @@ name: meshtastic-init
 description: >-
   Use when the user asks to "flash meshtastic", "set up t-beam", "init tracker",
   "provision node", "configure meshtastic device", "test mesh connection",
-  "check mesh nodes", "verify lora link", or mentions setting up a new LILYGO
-  T-Beam Supreme for Meshtastic. Covers firmware flashing, node configuration,
-  mesh connectivity testing, and common troubleshooting.
+  "check mesh nodes", "verify lora link", "rebuild firmware", or mentions setting
+  up a new LILYGO T-Beam Supreme for Meshtastic. Covers custom firmware building,
+  flashing, node configuration, mesh connectivity testing, and troubleshooting.
 ---
 
-# Meshtastic T-Beam Supreme Init & Test
+# Meshtastic T-Beam Supreme — Provisioning & Configuration
 
-Provisioning workflow for LILYGO T-Beam Supreme (ESP32-S3, SX1262) running Meshtastic firmware. Covers flash, configure, and verify mesh connectivity.
+Complete workflow for LILYGO T-Beam Supreme (ESP32-S3, SX1262) running custom DogTrackerModule firmware.
 
 ## Prerequisites
 
 ### Tools (install via pipx)
 
 ```bash
-pipx install meshtastic    # CLI for config and monitoring
+pipx install meshtastic    # CLI for config and monitoring (v2.7.7)
 pipx install esptool       # Firmware flashing
+pipx install platformio    # Building custom firmware
 ```
 
 ### Serial Permissions (Arch/CachyOS)
 
-Serial devices are owned by `uucp` group (not `dialout` like Debian):
+Udev rule at `/etc/udev/rules.d/99-meshtastic.rules` sets `MODE=0660 GROUP=uucp`. User must be in the `uucp` group:
 
 ```bash
-sudo usermod -a -G uucp $USER
-# Requires logout/login to take effect
-# Temporary fix: sudo chmod 666 /dev/ttyACMx
+sudo usermod -a -G uucp $USER  # Requires logout/login to take effect
 ```
 
-### Identifying Devices
+No `chmod` needed after reboots — udev handles permissions automatically.
+
+### Udev Symlinks
+
+Stable device paths via `/etc/udev/rules.d/99-meshtastic.rules`:
+
+- Dog1: `/dev/meshtastic-dog1` (USB serial 48CA435AE484)
+- Base: `/dev/meshtastic-base` (USB serial 48CA435AC98C)
+
+**Always use symlinks, not raw `/dev/ttyACMx`** — ACM numbers can swap on reboot.
+
+## Phase 1: Build Custom Firmware
+
+The project uses a Meshtastic v2.7.15 fork with DogTrackerModule at `meshtastic-firmware/` (branch `dog-tracker`).
 
 ```bash
-# List connected T-Beams with MAC-to-port mapping
-ls -la /dev/serial/by-id/
-# Format: usb-Espressif_Systems_LilyGo_TBeam-S3-Core_<MAC>-if00 -> ../../ttyACMx
+cd /data/dev/projects/esp32/dog/meshtastic-firmware
+pio run -e tbeam-s3-core
+# Output: .pio/build/tbeam-s3-core/firmware.factory.bin
 ```
 
-## Phase 1: Flash Firmware
+## Phase 2: Flash Firmware
 
-### Download Latest Firmware
+### T-Beam Supreme Bootloader Entry (MANUAL — no auto-reset exists)
 
-```bash
-# Get latest release version
-VERSION=$(curl -s https://api.github.com/repos/meshtastic/firmware/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+The ESP32-S3 USB-CDC does NOT support RTS/DTR signaling. PlatformIO upload, `esptool --before default-reset`, and 1200bps touch ALL fail.
 
-# Download ESP32-S3 firmware bundle
-mkdir -p /tmp/meshtastic-fw && cd /tmp/meshtastic-fw
-curl -sL -o firmware-esp32s3.zip \
-  "https://github.com/meshtastic/firmware/releases/download/${VERSION}/firmware-esp32s3-${VERSION#v}.zip"
-unzip -o firmware-esp32s3.zip -d fw
-```
+**Physical buttons on the T-Beam Supreme**: PWR, RST, BOOT (GPIO0).
+
+1. **Hold BOOT** button
+2. **Press RST** while holding BOOT
+3. **Release RST**, then **release BOOT**
+4. Verify: `lsusb` shows `"Espressif USB JTAG/serial debug unit"` (not `"LilyGo TBeam-S3-Core"`)
 
 ### Flash
 
-**IMPORTANT**: Antenna must NOT be connected during flash (no TX occurs). Connect antenna BEFORE enabling region/TX.
+Udev symlinks disappear in bootloader mode (USB identity changes). Use raw `/dev/ttyACMx`:
 
 ```bash
-PORT=/dev/ttyACM0  # Adjust per device
-
-# Erase and flash firmware
-esptool --port $PORT --baud 921600 --chip esp32s3 erase-flash
-esptool --port $PORT --baud 921600 --chip esp32s3 write-flash 0x0 \
-  /tmp/meshtastic-fw/fw/firmware-tbeam-s3-core-*.bin
+esptool --port /dev/ttyACMx --baud 921600 --chip esp32s3 --before no-reset \
+  write-flash 0x0 /data/dev/projects/esp32/dog/meshtastic-firmware/.pio/build/tbeam-s3-core/firmware.factory.bin
 ```
 
-The device reboots into Meshtastic automatically. LittleFS partition is created on first boot — no need to flash it separately.
+**CRITICAL**:
 
-### Verify Flash
+- Use `firmware.factory.bin` (NOT `firmware.bin`) — factory image includes bootloader + partition table
+- Use `--before no-reset` — ESP32-S3 USB-CDC cannot do auto-reset
+- **NEVER** use `erase-flash` unless you want to wipe all config (channels, WiFi, MQTT, role are stored in NVS and survive normal flashing)
+
+### Boot
+
+Press **RST** manually after flash. Esptool prints "Hard resetting via RTS pin..." but this does NOT actually reset the ESP32-S3 over USB-CDC.
+
+### Verify
 
 ```bash
-# Wait ~10 seconds for boot, then:
-meshtastic --port $PORT --info
-# Should show firmwareVersion, hwModel: LILYGO_TBEAM_S3_CORE
+# Wait ~10s for boot
+meshtastic --port /dev/meshtastic-dog1 --info
+# Check firmwareVersion field
 ```
 
-If `--info` times out, the board may still be booting. Wait 10-15 seconds and retry. The OLED showing a menu confirms Meshtastic is running.
+NVS config survives flashing — no reconfiguration needed after firmware update.
 
-## Phase 2: Configure Node
+## Phase 3: Configure Node
 
-### Critical: Set Region FIRST and ALONE
+### CRITICAL: Config Module Separation
 
-Region changes trigger a device reboot. Any other settings in the same command batch will be lost.
+**Each config module MUST be a separate `meshtastic` command.** Mixing modules in one command causes earlier modules to be clobbered when the device reboots mid-write.
 
-```bash
-# ALWAYS set region as a standalone command
-meshtastic --port $PORT --set lora.region US
-# Wait for reboot (~10 seconds)
-```
+Within a single module, chaining multiple `--set` flags IS safe.
 
-**Verification**: `--get lora.region` may return `0` due to a CLI display bug. Use `--export-config | grep region` to verify the actual stored value.
+After EVERY config command: `sleep 15`
 
-### Set Identity
+### Dog1 (Tracker) Configuration
 
 ```bash
-meshtastic --port $PORT --set-owner "NodeName" --set-owner-short "NN"
-```
+PORT=/dev/meshtastic-dog1
 
-### Configure by Role
+# 1. Channel config
+meshtastic --port $PORT --ch-set module_settings.position_precision 32 --ch-index 0
+sleep 15
 
-#### Tracker Node (GPS dog tracker)
+# 2. Device config
+meshtastic --port $PORT --set device.role TRACKER
+sleep 15
 
-```bash
+# 3. Position config (all position.* flags safe together)
 meshtastic --port $PORT \
-  --set device.role TRACKER \
   --set position.gps_update_interval 30 \
   --set position.position_broadcast_secs 60 \
   --set position.position_broadcast_smart_enabled true \
   --set position.broadcast_smart_minimum_distance 10 \
-  --set display.screen_on_secs 30 \
-  --set network.wifi_enabled false \
-  --set power.ls_secs 300
+  --set position.broadcast_smart_minimum_interval_secs 15
+sleep 15
+
+# 4. Display config
+meshtastic --port $PORT --set display.screen_on_secs 600
+sleep 15
+
+# 5. Network config
+meshtastic --port $PORT --set network.wifi_enabled false
+sleep 15
+
+# 6. Telemetry config (device_telemetry_enabled MUST be explicitly set — defaults to false!)
+meshtastic --port $PORT --set telemetry.device_telemetry_enabled true --set telemetry.device_update_interval 900
+sleep 15
+
+# 7. Verify
+meshtastic --port $PORT --get device.role --get position --get telemetry
+meshtastic --port $PORT --info 2>&1 | grep -E 'deviceTelemetryEnabled|positionPrecision'
 ```
 
-#### Base Station (receive-only)
+### Base Station Configuration
 
 ```bash
+PORT=/dev/meshtastic-base
+
+# 1. Channel config (two separate --ch-set commands, each triggers reboot)
+meshtastic --port $PORT --ch-set uplink_enabled true --ch-index 0
+sleep 15
+
+meshtastic --port $PORT --ch-set module_settings.position_precision 32 --ch-index 0
+sleep 15
+
+# 2. Device config
+meshtastic --port $PORT --set device.role CLIENT_MUTE
+sleep 15
+
+# 3. Display config
+meshtastic --port $PORT --set display.screen_on_secs 600
+sleep 15
+
+# 4. Network config (wifi_enabled LAST in flag order per GitHub #8729)
 meshtastic --port $PORT \
-  --set device.role CLIENT_MUTE \
-  --set network.wifi_enabled false
+  --set network.wifi_ssid "LAN Before Time" \
+  --set network.wifi_psk "ACTUAL_PASSWORD" \
+  --set network.wifi_enabled true
+sleep 15
+
+# 5. Telemetry config
+meshtastic --port $PORT \
+  --set telemetry.device_telemetry_enabled true \
+  --set telemetry.device_update_interval 60 \
+  --set telemetry.environment_update_interval 60 \
+  --set telemetry.power_measurement_enabled true \
+  --set telemetry.power_update_interval 60
+sleep 15
+
+# 6. MQTT config (LAST — least likely to be clobbered)
+meshtastic --port $PORT \
+  --set mqtt.enabled true \
+  --set mqtt.address 10.0.99.34 \
+  --set mqtt.username doio \
+  --set mqtt.password doio2025 \
+  --set mqtt.json_enabled true \
+  --set mqtt.root msh \
+  --set mqtt.encryption_enabled false
+sleep 15
+
+# 7. Verify all modules persisted
+meshtastic --port $PORT --get network --get mqtt --get device.role --get telemetry
+meshtastic --port $PORT --info 2>&1 | grep -E 'wifiEnabled|mqttEnabled|deviceTelemetryEnabled|positionPrecision'
 ```
 
-### Export & Verify Full Config
+### Setting Channel Encryption (both nodes)
+
+To set up shared AES256 encrypted channel:
 
 ```bash
-meshtastic --port $PORT --export-config
+# On one node: generate random PSK
+meshtastic --port /dev/meshtastic-base --ch-set psk random --ch-index 0
+sleep 15
+
+# Export the channel URL
+meshtastic --port /dev/meshtastic-base --export-config | grep channel_url
+
+# Apply to other node via --seturl
+# WARNING: --seturl overwrites ALL channel config AND device role!
+meshtastic --port /dev/meshtastic-dog1 --seturl "https://meshtastic.org/e/#..."
+sleep 15
+
+# Re-apply device role (--seturl clobbered it!)
+meshtastic --port /dev/meshtastic-dog1 --set device.role TRACKER
+sleep 15
 ```
 
-Check that `region: US` appears in the `lora:` section. If missing, re-apply region and reboot.
+## Phase 4: Verify
 
-## Phase 3: Test Mesh Connectivity
-
-### Verify Both Nodes See Each Other
+### Mesh Connectivity
 
 ```bash
-# Check node list from either device
-meshtastic --port $PORT --nodes
+# Both nodes should see each other
+meshtastic --port /dev/meshtastic-dog1 --nodes
+meshtastic --port /dev/meshtastic-base --nodes
+
+# Send test message
+meshtastic --port /dev/meshtastic-dog1 --sendtext "ping from dog1"
 ```
 
-Both nodes should appear in each other's node tables. If not:
-
-### Troubleshooting: Nodes Not Discovering
-
-1. **Region mismatch** (most common) — Both nodes MUST have the same `lora.region`. Export config from both and compare. A node with `UNSET` region won't transmit.
-2. **Antenna not connected** — LoRa won't receive without an antenna on the SMA port. Don't confuse with GPS IPEX port.
-3. **Channel key mismatch** — Compare `channel_url` from `--export-config` on both nodes. Must be identical.
-4. **Just flashed** — Nodes may take 1-2 minutes to exchange node info. Send a broadcast to force it:
-   ```bash
-   meshtastic --port $PORT --sendtext "ping"
-   ```
-5. **Reboot both** — After config changes, explicit reboot can help:
-   ```bash
-   meshtastic --port $PORT --reboot
-   ```
-
-### Send Test Message
+### Telemetry Pipeline
 
 ```bash
-# Broadcast from node A
-meshtastic --port /dev/ttyACM0 --sendtext "hello from tracker"
+# 1. MQTT messages flowing?
+mosquitto_sub -h 10.0.99.34 -u doio -P doio2025 -t 'msh/#' -v -C 5 -W 30
 
-# Check node B received it (should appear in node list with LastHeard timestamp)
-meshtastic --port /dev/ttyACM1 --nodes
+# 2. Exporter healthy?
+systemctl --user status meshtastic-exporter
+curl -s http://localhost:9641/metrics | grep -E '^meshtastic_'
+
+# 3. Mimir receiving?
+curl -s -H 'X-Scope-OrgID: anonymous' \
+  'http://10.0.99.203:9009/prometheus/api/v1/query?query=meshtastic_position_latitude'
+
+# 4. Grafana dashboard
+# http://10.0.99.205:3000/d/meshtastic-dog-tracker
 ```
 
-### Verify GPS Lock
-
-```bash
-meshtastic --port $PORT --nodes
-# Position columns (Latitude, Longitude) should populate once GPS has a fix
-# First fix may take 1-5 minutes outdoors, longer indoors
-```
-
-## Known Issues & Gotchas
+## Known Issues & Pitfalls
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `--set lora.region US` succeeds but reads back as `0` | CLI display bug (v2.7.x) | Use `--export-config \| grep region` to verify |
-| Settings lost after region change | Region change triggers reboot, dropping batched writes | Always set region alone, then other settings after reboot |
-| `Permission denied: /dev/ttyACMx` | User not in `uucp` group | `sudo usermod -a -G uucp $USER` + re-login, or `sudo chmod 666 /dev/ttyACMx` |
-| Serial timeout on connect | Board rebooting or port re-enumerated | Wait 10-15s, `sudo chmod 666`, retry |
-| Owner name reverts to "Meshtastic xxxx" | Name set in same batch as region (lost on reboot) | Set name after region reboot completes |
-| `esptool` can't connect after flash | Board running firmware, not in bootloader | Hold BOOT + press RESET to enter download mode |
-| Nodes on same desk can't see each other | Different `lora.region` values | Export config from both, compare region field |
-| `Tx air util: 0%` on both nodes | Region UNSET, radio not transmitting | Set region to US (or appropriate) |
+| Config lost after setting | Mixed config modules in one command | Each module in SEPARATE command with `sleep 15` between |
+| Serial timeout on connect | Board rebooting or port locked | Wait 15s, retry. Ensure nothing else holds the port. |
+| WiFi won't connect (reason 201) | SSID case mismatch or 5GHz network | SSIDs are CASE SENSITIVE: "LAN Before Time" not "Lan Before Time". Must be 2.4GHz. |
+| Telemetry not sending despite interval set | `device_telemetry_enabled` defaults to false | Must explicitly `--set telemetry.device_telemetry_enabled true` |
+| `--get telemetry` looks empty | Defaults hidden in `--get` output | Use `--info 2>&1 \| grep deviceTelemetry` to see actual state |
+| Position shows ~2.4km grid cells | `position_precision` at default 13 | `--ch-set module_settings.position_precision 32 --ch-index 0` (needs `module_settings.` prefix!) |
+| `--seturl` broke device role | `--seturl` overwrites channel config AND device role | Re-apply `--set device.role` after every `--seturl` |
+| esptool can't connect | Device running firmware, not in bootloader | Hold BOOT, press RST, release RST, release BOOT |
+| esptool "Hard resetting" but device doesn't boot | ESP32-S3 USB-CDC doesn't support RTS reset | Press RST button manually |
+| Flashed firmware.bin, stuck in bootloader | firmware.bin lacks bootloader + partition table | Use `firmware.factory.bin`, re-flash at offset 0x0 |
+| Udev symlinks missing during flash | Bootloader has different USB identity | Use raw `/dev/ttyACMx` for flashing; symlinks return after RST + boot |
+| `--ch-set position_precision 32` fails silently | Missing `module_settings.` prefix | Use `--ch-set module_settings.position_precision 32 --ch-index 0` |
 
-## Device Role Reference
-
-| Role | TX | Rebroadcast | GPS | Best For |
-|------|-----|------------|-----|----------|
-| CLIENT | Yes | Yes | Optional | General use |
-| CLIENT_MUTE | Yes | No | Optional | Base station / receive-focused |
-| TRACKER | Yes | When awake | Yes | GPS tracking devices |
-| ROUTER | Yes | Yes (priority) | No | Infrastructure relay |
-| LOST_AND_FOUND | Yes | Yes | Yes | Pet/asset recovery |
-
-## Quick Reference Commands
+## Quick Reference
 
 ```bash
-# Device info
+# Device info & running state
 meshtastic --port $PORT --info
 
-# Node list
+# Node list (mesh peers)
 meshtastic --port $PORT --nodes
 
 # Export full config
 meshtastic --port $PORT --export-config
 
-# Send broadcast
+# Read NVS-saved config (hides defaults!)
+meshtastic --port $PORT --get network --get mqtt --get telemetry
+
+# Diagnostic grep (shows running state including defaults)
+meshtastic --port $PORT --info 2>&1 | grep -E 'pattern'
+
+# Send message / request telemetry
 meshtastic --port $PORT --sendtext "message"
+meshtastic --port $PORT --request-telemetry --dest '!435ae484'
 
-# Reboot
+# Toggle base GPS
+meshtastic --port /dev/meshtastic-base --set position.gps_mode DISABLED
+meshtastic --port /dev/meshtastic-base --set position.gps_mode ENABLED
+
+# Rebuild & restart exporter
+podman build -t meshtastic-exporter:latest /data/dev/projects/esp32/dog/meshtastic-exporter/
+systemctl --user restart meshtastic-exporter
+
+# Check MQTT
+mosquitto_sub -h 10.0.99.34 -u doio -P doio2025 -t 'msh/#' -v -C 5 -W 30
+
+# Reboot node
 meshtastic --port $PORT --reboot
+```
 
-# Factory reset (WARNING: erases all config)
-meshtastic --port $PORT --factory-reset
+## DogTrackerModule Commands
+
+Send as directed text messages to the tracker node from the base:
+
+```bash
+meshtastic --port /dev/meshtastic-base --sendtext "PROFILE Track" --dest '!435ae484'
+meshtastic --port /dev/meshtastic-base --sendtext "STATUS" --dest '!435ae484'
+meshtastic --port /dev/meshtastic-base --sendtext "FENCE HERE" --dest '!435ae484'
+meshtastic --port /dev/meshtastic-base --sendtext "LOG FLUSH" --dest '!435ae484'
 ```
