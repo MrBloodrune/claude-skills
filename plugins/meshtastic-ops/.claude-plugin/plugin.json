@@ -1,0 +1,9 @@
+{
+  "name": "meshtastic-ops",
+  "version": "1.0.0",
+  "description": "Meshtastic device provisioning, configuration, mesh network operations, and troubleshooting for LILYGO T-Beam Supreme (ESP32-S3, SX1262 LoRa) boards",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["meshtastic", "lora", "esp32", "t-beam", "gps", "mesh", "embedded", "tracker"]
+}
