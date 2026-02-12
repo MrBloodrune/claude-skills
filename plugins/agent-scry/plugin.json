@@ -1,7 +1,7 @@
 {
   "name": "ai-scry",
   "description": "Real-time observation dashboard for Claude Code agent swarms",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "commands": [
     {
       "name": "observe",
@@ -16,52 +16,46 @@
   ],
   "hooks": {
     "SessionStart": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_start"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_start", "timeout": 5 }] }
     ],
     "PreToolUse": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_start"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_start", "timeout": 5 }] }
     ],
     "PostToolUse": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_end"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_end", "timeout": 5 }] }
+    ],
+    "PostToolUseFailure": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_error", "timeout": 5 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_start", "timeout": 5 }] }
     ],
     "SubagentStop": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_complete"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_complete", "timeout": 5 }] }
     ],
     "PreCompact": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js compaction"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js compaction", "timeout": 5 }] }
     ],
     "UserPromptSubmit": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js user_prompt"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js user_prompt", "timeout": 5 }] }
     ],
     "Stop": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_stop"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_stop", "timeout": 5 }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js permission_request", "timeout": 5 }] }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js notification", "timeout": 5 }] }
+    ],
+    "TaskCompleted": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js task_completed", "timeout": 5 }] }
+    ],
+    "TeammateIdle": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js teammate_idle", "timeout": 5 }] }
     ],
     "SessionEnd": [
-      {
-        "type": "command",
-        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_end"
-      }
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_end", "timeout": 5 }] }
     ]
   }
 }
