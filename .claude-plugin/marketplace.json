@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "plugins": [
     {
@@ -121,6 +121,12 @@
       "name": "agent-scry",
       "description": "Real-time observation dashboard for Claude Code agent swarms with timeline, Sankey flow, and live stats panels",
       "source": "./plugins/agent-scry",
+      "strict": false
+    },
+    {
+      "name": "meshtastic-ops",
+      "description": "Meshtastic device provisioning, configuration, mesh network operations, and troubleshooting for LILYGO T-Beam Supreme (ESP32-S3, SX1262 LoRa) boards",
+      "source": "./plugins/meshtastic-ops",
       "strict": false
     }
   ]
