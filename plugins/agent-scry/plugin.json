@@ -1,0 +1,67 @@
+{
+  "name": "ai-scry",
+  "description": "Real-time observation dashboard for Claude Code agent swarms",
+  "version": "0.1.0",
+  "commands": [
+    {
+      "name": "observe",
+      "description": "Start the observatory dashboard and open it in a browser",
+      "file": "commands/observe.md"
+    },
+    {
+      "name": "observe-stop",
+      "description": "Stop the observatory server",
+      "file": "commands/observe-stop.md"
+    }
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_start"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_start"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js tool_end"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_complete"
+      }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js compaction"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js user_prompt"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js agent_stop"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "type": "command",
+        "command": "node ${CLAUDE_PLUGIN_ROOT}/server/emit.js session_end"
+      }
+    ]
+  }
+}

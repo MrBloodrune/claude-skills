@@ -3,7 +3,7 @@ name: observe-stop
 description: Stop the observatory server
 ---
 
-Stop the Agent Scry observatory server.
+Stop the AI Scry observatory server.
 
 Steps:
 1. Read the PID from `~/.claude/observatory/server.pid`

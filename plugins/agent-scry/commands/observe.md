@@ -3,7 +3,7 @@ name: observe
 description: Start the observatory dashboard and open it in a browser
 ---
 
-Start the Agent Scry observatory server and open the dashboard.
+Start the AI Scry observatory server and open the dashboard.
 
 Steps:
 1. Check if the server is already running by testing the health endpoint at `http://localhost:7847/api/health`

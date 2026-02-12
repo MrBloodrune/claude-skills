@@ -39,12 +39,27 @@ function buildEvent(payload) {
   };
 
   if (eventType === 'session_start') {
-    return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null, model: payload.model || null, cwd: payload.cwd || null });
+    return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null, model: payload.model || null, cwd: payload.cwd || null, source: payload.source || null });
   }
   if (eventType === 'compaction') {
     return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto', cwd: payload.cwd || null });
   }
-  if (eventType === 'session_end') { event.agent_id = 'ag_main'; event.cwd = payload.cwd || null; return event; }
+  if (eventType === 'session_end') { event.agent_id = 'ag_main'; event.cwd = payload.cwd || null; event.reason = payload.reason || null; return event; }
+
+  if (eventType === 'user_prompt') {
+    return Object.assign(event, {
+      agent_id: 'ag_main',
+      prompt_text: payload.prompt || '',
+      cwd: payload.cwd || null,
+    });
+  }
+  if (eventType === 'agent_stop') {
+    return Object.assign(event, {
+      agent_id: 'ag_main',
+      stop_hook_active: payload.stop_hook_active || false,
+      cwd: payload.cwd || null,
+    });
+  }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
     event.tool_name = payload.tool_name || 'unknown';
@@ -109,6 +124,7 @@ function buildEvent(payload) {
       tokens_out: payload.tokens_out || 0, duration_ms: payload.duration_ms || 0,
       status: payload.status || 'success', contributes_to: payload.contributes_to || [],
       transcript_path: payload.transcript_path || null,
+      agent_transcript_path: payload.agent_transcript_path || null,
     });
     return event;
   }
@@ -122,8 +138,9 @@ function matchPending(payload) {
   if (!existsSync(PENDING_DIR)) return null;
   const files = readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
   if (!files.length) return null;
-  const label = payload.agent_label || payload.subagent_type || '';
-  const match = files.find(f => f.startsWith(label + '-')) || files[files.length - 1];
+  const label = payload.agent_type || payload.agent_label || payload.subagent_type || '';
+  // Sort by creation time (FIFO) for multiple agents of same type
+  const match = files.find(f => f.startsWith(label + '-')) || files[0];
   const data = JSON.parse(readFileSync(join(PENDING_DIR, match), 'utf8'));
   renameSync(join(PENDING_DIR, match), join(RESOLVED_DIR, match));
   return data;

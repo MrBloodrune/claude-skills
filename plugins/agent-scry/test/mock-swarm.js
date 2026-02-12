@@ -25,10 +25,14 @@ function post(event) {
   });
 }
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// Virtual clock — spreads events across realistic timeline without real-time waits
+const TIME_SCALE = parseInt(process.env.MOCK_TIME_SCALE || '20', 10);
+let vt = Date.now();
+const tick = (ms) => { vt += ms * TIME_SCALE; };
+const sleep = (ms) => { tick(ms); return new Promise(r => setTimeout(r, 15)); };
 
 let evtN = 0, tuN = 0;
-const evt = (overrides) => ({ id: `evt_mock_${String(++evtN).padStart(3, '0')}`, session_id: SESSION_ID, timestamp: Date.now(), ...overrides });
+const evt = (overrides) => ({ id: `evt_mock_${String(++evtN).padStart(3, '0')}`, session_id: SESSION_ID, timestamp: vt, ...overrides });
 const tuId = () => `tu_mock_${String(++tuN).padStart(3, '0')}`;
 
 async function toolCall(agentId, label, tool, params, opts = {}) {
@@ -48,7 +52,7 @@ async function toolCall(agentId, label, tool, params, opts = {}) {
     tool_name: tool, tool_use_id: id,
     tokens_in: opts.tokIn || 500 + Math.floor(Math.random() * 2000),
     tokens_out: opts.tokOut || 200 + Math.floor(Math.random() * 800),
-    duration_ms: Math.floor(delay),
+    duration_ms: Math.floor(delay * TIME_SCALE),
     has_error: !!opts.error,
     tool_response_summary: opts.error || opts.summary || `Completed ${tool}`,
     ...(opts.task_data_end ? { task_data: opts.task_data_end } : {}),
@@ -71,6 +75,26 @@ async function compaction(trigger = 'auto') {
   await sleep(200);
 }
 
+async function userPrompt(text) {
+  await post(evt({
+    event_type: 'user_prompt',
+    session_id: SESSION_ID,
+    agent_id: 'ag_main',
+    prompt_text: text,
+  }));
+  await sleep(100);
+}
+
+async function agentStop() {
+  await post(evt({
+    event_type: 'agent_stop',
+    session_id: SESSION_ID,
+    agent_id: 'ag_main',
+    stop_hook_active: false,
+  }));
+  await sleep(200);
+}
+
 async function run() {
   console.log(`Mock swarm starting — session ${SESSION_ID}`);
   console.log('Simulating: "Refactor Authentication System" (three-phase with compactions)\n');
@@ -79,9 +103,15 @@ async function run() {
   // ═══════════════════════════════════════════
   // SESSION START
   // ═══════════════════════════════════════════
-  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main', transcript_path: MOCK_TRANSCRIPT, model: 'claude-sonnet-4-5-20250929', cwd: '/home/user/projects/auth-system' }));
-  console.log('  session_start (sonnet, cwd set)');
+  await post(evt({ event_type: 'session_start', agent_id: 'ag_main', agent_label: 'main', transcript_path: MOCK_TRANSCRIPT, model: 'claude-sonnet-4-5-20250929', cwd: '/home/user/projects/auth-system', source: 'startup' }));
+  console.log('  session_start (sonnet, source=startup)');
   await sleep(300);
+
+  // ═══════════════════════════════════════════
+  // PROMPT 1 — "Implement user authentication with JWT tokens"
+  // ═══════════════════════════════════════════
+  await userPrompt('Implement user authentication with JWT tokens for our Express API. Support access tokens, refresh token rotation, and role-based authorization middleware.');
+  console.log('  user_prompt: "Implement user authentication with JWT tokens..."');
 
   // ═══════════════════════════════════════════
   // PHASE 1 — PLANNING (~0s–26s simulated)
@@ -93,6 +123,10 @@ async function run() {
     plan_data: { plan_event: 'enter_plan_mode' }, delay: 300,
   });
   console.log('  EnterPlanMode');
+
+  // Skill: brainstorming
+  await toolCall('ag_main', 'main', 'Skill', 'skill=superpowers:brainstorming', { summary: 'Brainstorming auth architecture options', delay: 400 });
+  console.log('  Skill: superpowers:brainstorming');
 
   // Read CLAUDE.md
   await toolCall('ag_main', 'main', 'Read', 'file_path=CLAUDE.md', { summary: 'Read project instructions' });
@@ -204,6 +238,10 @@ async function run() {
   });
   console.log('  TaskUpdate: task 3 completed, ExitPlanMode');
 
+  // Agent stop after turn 1
+  await agentStop();
+  console.log('  agent_stop (turn 1)');
+
   // ═══════════════════════════════════════════
   // COMPACTION 1 — Auto compaction after planning
   // ═══════════════════════════════════════════
@@ -211,10 +249,10 @@ async function run() {
   console.log('\n  ⚡ Compaction C1 (auto — post-planning)');
 
   // ═══════════════════════════════════════════
-  // GAP — Human reviewing plan (~2s)
+  // PROMPT 2 — "Use bcrypt for password hashing, not argon2"
   // ═══════════════════════════════════════════
-  console.log('\n  ─── Gap: Human review ───');
-  await sleep(1500);
+  await userPrompt('Use bcrypt for password hashing, not argon2. Also approve the plan and start implementing.');
+  console.log('  user_prompt: "Use bcrypt for password hashing, not argon2..."');
 
   // ═══════════════════════════════════════════
   // PHASE 2 — EXECUTION (~28s–66s simulated)
@@ -321,11 +359,21 @@ async function run() {
   });
   console.log('  TaskUpdate: tasks 4-6 completed, task 7 failed');
 
+  // Agent stop after turn 2
+  await agentStop();
+  console.log('  agent_stop (turn 2)');
+
   // ═══════════════════════════════════════════
   // COMPACTION 2 — Manual compaction during execution
   // ═══════════════════════════════════════════
   await compaction('manual');
   console.log('\n  ⚡ Compaction C2 (manual — focus auth middleware)');
+
+  // ═══════════════════════════════════════════
+  // PROMPT 3 — "Now add the login endpoint and write tests"
+  // ═══════════════════════════════════════════
+  await userPrompt('The integration test failed with ECONNREFUSED. Debug the test server port conflict and fix the test configuration, then re-run tests.');
+  console.log('  user_prompt: "The integration test failed with ECONNREFUSED..."');
 
   // ═══════════════════════════════════════════
   // PHASE 3 — RE-PLANNING (2nd plan cycle)
@@ -336,6 +384,10 @@ async function run() {
     plan_data: { plan_event: 'enter_plan_mode' }, delay: 300,
   });
   console.log('  EnterPlanMode (2nd cycle)');
+
+  // Skill: debugging
+  await toolCall('ag_main', 'main', 'Skill', 'skill=superpowers:debugging', { summary: 'Systematic debugging of test failures', delay: 350 });
+  console.log('  Skill: superpowers:debugging');
 
   // Main reads the failing test output
   await toolCall('ag_main', 'main', 'Read', 'file_path=tests/auth/jwt.test.ts', { summary: 'Read failing test file' });
@@ -409,6 +461,71 @@ async function run() {
   });
   console.log('  TaskUpdate: task 9 completed');
 
+  // Agent stop after turn 3
+  await agentStop();
+  console.log('  agent_stop (turn 3)');
+
+  // ═══════════════════════════════════════════
+  // PROMPT 4 — "Now document and clean up"
+  // ═══════════════════════════════════════════
+  await userPrompt('Great, tests pass now. Update the API docs with the new JWT endpoints, write a migration guide from session-based auth, and clean up deprecated auth code.');
+  console.log('  user_prompt: "Great, tests pass now. Update the API docs..."');
+
+  // ═══════════════════════════════════════════
+  // PHASE 5 — DOCUMENTATION (3rd plan cycle)
+  // ═══════════════════════════════════════════
+  console.log('\n  ─── Phase 5: Documentation & Cleanup ───');
+
+  await toolCall('ag_main', 'main', 'EnterPlanMode', '', {
+    plan_data: { plan_event: 'enter_plan_mode' }, delay: 300,
+  });
+
+  // Skill: security audit
+  await toolCall('ag_main', 'main', 'Skill', 'skill=code-review:security-audit', { summary: 'Security audit of auth implementation', delay: 300 });
+  console.log('  Skill: code-review:security-audit');
+
+  await toolCall('ag_main', 'main', 'Write', 'file_path=.claude/plans/auth-docs-plan.md', {
+    summary: 'Wrote docs plan',
+    plan_data: { plan_event: 'plan_write', file_path: '.claude/plans/auth-docs-plan.md', content_preview: '# Documentation Plan\n\n## Tasks\n1. Update API docs with new JWT endpoints\n2. Add migration guide for session→JWT\n3. Clean up deprecated auth code' },
+    tokIn: 3000, tokOut: 2000,
+  });
+  await toolCall('ag_main', 'main', 'ExitPlanMode', '', {
+    plan_data: { plan_event: 'exit_plan_mode' }, delay: 300,
+  });
+  console.log('  Plan cycle 3: docs plan');
+
+  await toolCall('ag_main', 'main', 'TaskCreate', 'subject=Update API documentation', {
+    task_data: { task_type: 'task_create', subject: 'Update API documentation', description: 'Update API docs with new JWT auth endpoints', activeForm: 'Updating API docs' },
+    delay: 150,
+  });
+  await toolCall('ag_main', 'main', 'TaskCreate', 'subject=Clean up deprecated auth code', {
+    task_data: { task_type: 'task_create', subject: 'Clean up deprecated auth code', description: 'Remove old session-based auth code', activeForm: 'Cleaning up deprecated code' },
+    delay: 150,
+  });
+
+  await spawnAgent('ag_docs_01', 'ag_main', 'general-purpose', 'Update API documentation', ['docs'], 'sonnet');
+  await spawnAgent('ag_cleanup_01', 'ag_main', 'Explore', 'Find deprecated auth code to remove', ['cleanup'], 'haiku');
+  console.log('  spawn: ag_docs_01, ag_cleanup_01');
+
+  await toolCall('ag_docs_01', 'general-purpose', 'Read', 'file_path=docs/api.md', { summary: 'Read current API docs', tokIn: 2000, tokOut: 400 });
+  await toolCall('ag_cleanup_01', 'Explore', 'Grep', 'pattern=@deprecated.*auth', { summary: 'Found 8 deprecated refs', tokIn: 1200, tokOut: 300 });
+  await toolCall('ag_docs_01', 'general-purpose', 'Write', 'file_path=docs/api.md', { summary: 'Updated API docs with JWT endpoints', tokIn: 3500, tokOut: 2000 });
+  await toolCall('ag_cleanup_01', 'Explore', 'Read', 'file_path=src/auth/legacy.ts', { summary: 'Read legacy auth code', tokIn: 1800, tokOut: 400 });
+  await toolCall('ag_docs_01', 'general-purpose', 'Write', 'file_path=docs/migration-guide.md', { summary: 'Created migration guide', tokIn: 3000, tokOut: 1800 });
+  await toolCall('ag_cleanup_01', 'Explore', 'Glob', 'pattern=src/auth/old-*', { summary: 'Found 3 legacy files', tokIn: 800, tokOut: 200 });
+  console.log('  docs + cleanup tool calls');
+
+  await completeAgent('ag_docs_01', 'ag_main', 'general-purpose', 'Update API documentation', ['docs'], 'success', 10000, 4500, 12000);
+  await completeAgent('ag_cleanup_01', 'ag_main', 'Explore', 'Find deprecated auth code to remove', ['cleanup'], 'success', 4500, 1200, 8000);
+  console.log('  complete: ag_docs_01, ag_cleanup_01 (success)');
+
+  for (let i = 10; i <= 11; i++) {
+    await toolCall('ag_main', 'main', 'TaskUpdate', `taskId=${i} status=completed`, {
+      task_data: { task_type: 'task_update', taskId: String(i), status: 'completed', owner: null, subject: null }, delay: 100,
+    });
+  }
+  console.log('  TaskUpdate: tasks 10-11 completed');
+
   // Final TaskList showing all tasks
   await toolCall('ag_main', 'main', 'TaskList', '', {
     task_data_end: {
@@ -423,11 +540,17 @@ async function run() {
         { id: '7', subject: 'Run integration tests', status: 'error' },
         { id: '8', subject: 'Fix test server port conflict', status: 'completed' },
         { id: '9', subject: 'Retry integration tests', status: 'completed' },
+        { id: '10', subject: 'Update API documentation', status: 'completed' },
+        { id: '11', subject: 'Clean up deprecated auth code', status: 'completed' },
       ],
     },
     delay: 200,
   });
   console.log('  TaskList: final state (9 tasks)');
+
+  // Agent stop after turn 4
+  await agentStop();
+  console.log('  agent_stop (turn 4)');
 
   // ═══════════════════════════════════════════
   // SESSION END
@@ -437,8 +560,9 @@ async function run() {
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\nMock swarm complete — ${evtN} events, ${tuN} tool calls in ${elapsed}s`);
-  console.log('Agents: 1 main + 9 sub (2 Explore, 1 Plan, 3 general-purpose, 2 Bash + 1 retry)');
-  console.log('Plan cycles: 2, Compactions: 2');
+  console.log('Agents: 1 main + 11 sub (3 Explore, 1 Plan, 4 general-purpose, 2 Bash + 1 retry)');
+  console.log('Prompts: 4, Agent stops: 4');
+  console.log('Context cycles: 3 (session_start + 2 compactions), Plan modes: 3, Skills: 3');
 }
 
 run().catch(console.error);
