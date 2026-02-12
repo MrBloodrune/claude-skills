@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
-import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
+import { join, dirname, resolve, basename } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { parseTranscript, listSubagentTranscripts, extractCompactionSummaries } from './transcript.js';
@@ -8,7 +8,8 @@ import { parseTranscript, listSubagentTranscripts, extractCompactionSummaries } 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-const BASE_DIR = join(process.env.HOME, '.claude', 'observatory');
+const HOME = process.env.HOME || '/home';
+const BASE_DIR = join(HOME, '.claude', 'observatory');
 const SESSIONS_DIR = join(BASE_DIR, 'sessions');
 const PID_FILE = join(BASE_DIR, 'server.pid');
 const DASHBOARD_PATH = join(__dirname, '..', 'dashboard', 'index.html');
@@ -24,7 +25,8 @@ const startTime = Date.now();
 const agentTranscripts = new Map();
 
 function sessionPath(sid) {
-  return join(SESSIONS_DIR, `${sid}.jsonl`);
+  const safe = String(sid).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return join(SESSIONS_DIR, `${safe}.jsonl`);
 }
 
 function readSessionEvents(sid) {
@@ -33,10 +35,35 @@ function readSessionEvents(sid) {
   return readFileSync(p, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
 }
 
-function parseBody(req) {
+function sessionMeta(sid, file) {
+  const p = join(SESSIONS_DIR, file);
+  try {
+    const raw = readFileSync(p, 'utf8');
+    const lines = raw.split('\n').filter(Boolean);
+    if (lines.length === 0) return { id: sid, project: null, startTime: statSync(p).mtimeMs, active: true };
+    const first = JSON.parse(lines[0]);
+    const last = lines.length > 1 ? JSON.parse(lines[lines.length - 1]) : first;
+    const cwd = first.cwd || null;
+    return {
+      id: sid,
+      project: cwd ? cwd.split('/').pop() : null,
+      cwd,
+      startTime: first.timestamp || statSync(p).mtimeMs,
+      active: last.event_type !== 'session_end',
+      model: first.model || null,
+    };
+  } catch { return { id: sid, project: null, startTime: 0, active: true }; }
+}
+
+function parseBody(req, maxBytes = 1_048_576) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', c => chunks.push(c));
+    let size = 0;
+    req.on('data', c => {
+      size += c.length;
+      if (size > maxBytes) { req.destroy(); return reject(new Error('Body too large')); }
+      chunks.push(c);
+    });
     req.on('end', () => {
       try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
       catch (e) { reject(e); }
@@ -53,9 +80,12 @@ function cors(res) {
 
 function isAllowedTranscriptPath(tpath) {
   const home = process.env.HOME || '/home';
-  if (tpath.startsWith(join(home, '.claude', 'projects'))) return true;
+  const resolved = resolve(tpath);
+  const allowedBase = resolve(join(home, '.claude', 'projects'));
+  if (resolved.startsWith(allowedBase + '/')) return true;
   for (const known of agentTranscripts.values()) {
-    if (tpath === known || tpath.startsWith(join(dirname(known)))) return true;
+    const knownDir = resolve(dirname(known));
+    if (resolved === resolve(known) || resolved.startsWith(knownDir + '/')) return true;
   }
   return false;
 }
@@ -124,11 +154,11 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'GET' && path === '/api/sessions') {
     if (!existsSync(SESSIONS_DIR)) return json(res, 200, []);
-    const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl')).map(f => ({
-      id: f.replace('.jsonl', ''),
-      file: f,
-    }));
-    return json(res, 200, files);
+    const sessions = readdirSync(SESSIONS_DIR)
+      .filter(f => f.endsWith('.jsonl'))
+      .map(f => sessionMeta(f.replace('.jsonl', ''), f))
+      .sort((a, b) => b.startTime - a.startTime);
+    return json(res, 200, sessions);
   }
 
   if (req.method === 'GET' && path === '/api/health') {
@@ -189,6 +219,10 @@ const server = createServer(async (req, res) => {
     // Check project-specific CLAUDE.md first, then project root
     const projectClaudePath = join(home, '.claude', 'projects', slug, 'CLAUDE.md');
     const rootClaudePath = join(project, 'CLAUDE.md');
+    const resolvedRoot = resolve(rootClaudePath);
+    if (!resolvedRoot.startsWith(resolve(project) + '/')) {
+      return json(res, 403, { error: 'Invalid project path' });
+    }
     for (const p of [projectClaudePath, rootClaudePath]) {
       try {
         const content = readFileSync(p, 'utf8');
@@ -215,7 +249,7 @@ const server = createServer(async (req, res) => {
   res.end('Not found');
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   writeFileSync(PID_FILE, process.pid.toString());
   console.log(`Observatory server listening on http://localhost:${PORT}`);
   console.log(`PID ${process.pid} written to ${PID_FILE}`);

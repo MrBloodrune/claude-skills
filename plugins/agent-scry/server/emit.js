@@ -1,10 +1,12 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync, readdirSync, readFileSync, renameSync, appendFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readdirSync, readFileSync, renameSync, appendFileSync, existsSync, createReadStream } from 'node:fs';
 import { join } from 'node:path';
 import { request } from 'node:http';
 import { extractTaskData, extractPlanData } from './tasks.js';
+import { createInterface } from 'node:readline';
 
-const BASE_DIR = join(process.env.HOME, '.claude', 'observatory');
+const HOME = process.env.HOME || '/home';
+const BASE_DIR = join(HOME, '.claude', 'observatory');
 const SESSIONS_DIR = join(BASE_DIR, 'sessions');
 const PENDING_DIR = join(BASE_DIR, 'pending');
 const RESOLVED_DIR = join(BASE_DIR, 'resolved');
@@ -59,6 +61,39 @@ function buildEvent(payload) {
       stop_hook_active: payload.stop_hook_active || false,
       cwd: payload.cwd || null,
     });
+  }
+  if (eventType === 'agent_start') {
+    return Object.assign(event, {
+      agent_id: payload.agent_id || 'ag_unknown',
+      agent_type: payload.agent_type || 'unknown',
+      cwd: payload.cwd || null,
+    });
+  }
+  if (eventType === 'tool_error') {
+    return Object.assign(event, {
+      tool_name: payload.tool_name || 'unknown',
+      tool_use_id: payload.tool_use_id || null,
+      tool_params_summary: summarizeParams(toolInput),
+      agent_id: payload.agent_id || 'ag_main',
+      error: typeof payload.error === 'string' ? payload.error.slice(0, 200) : (typeof payload.tool_response === 'string' ? payload.tool_response.slice(0, 200) : ''),
+      cwd: payload.cwd || null,
+    });
+  }
+  if (eventType === 'permission_request') {
+    return Object.assign(event, {
+      agent_id: 'ag_main',
+      tool_name: payload.tool_name || null,
+      cwd: payload.cwd || null,
+    });
+  }
+  if (eventType === 'notification') {
+    return Object.assign(event, { agent_id: 'ag_main', cwd: payload.cwd || null });
+  }
+  if (eventType === 'task_completed') {
+    return Object.assign(event, { agent_id: 'ag_main', cwd: payload.cwd || null });
+  }
+  if (eventType === 'teammate_idle') {
+    return Object.assign(event, { agent_id: payload.agent_id || 'ag_main', agent_type: payload.agent_type || null, cwd: payload.cwd || null });
   }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
@@ -139,11 +174,15 @@ function matchPending(payload) {
   const files = readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
   if (!files.length) return null;
   const label = payload.agent_type || payload.agent_label || payload.subagent_type || '';
-  // Sort by creation time (FIFO) for multiple agents of same type
   const match = files.find(f => f.startsWith(label + '-')) || files[0];
-  const data = JSON.parse(readFileSync(join(PENDING_DIR, match), 'utf8'));
-  renameSync(join(PENDING_DIR, match), join(RESOLVED_DIR, match));
-  return data;
+  const src = join(PENDING_DIR, match);
+  const dst = join(RESOLVED_DIR, match);
+  try {
+    renameSync(src, dst);
+    return JSON.parse(readFileSync(dst, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 function postToServer(event) {
@@ -160,8 +199,50 @@ function postToServer(event) {
   });
 }
 
+async function parseTranscriptToolIds(transcriptPath) {
+  if (!transcriptPath || !existsSync(transcriptPath)) return [];
+  const ids = [];
+  const rl = createInterface({ input: createReadStream(transcriptPath, 'utf8'), crlfDelay: Infinity });
+  for await (const line of rl) {
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+    if (obj.type !== 'assistant') continue;
+    const content = obj.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block.type === 'tool_use' && block.id) ids.push(block.id);
+    }
+  }
+  return ids;
+}
+
+async function sendEvent(event) {
+  const sent = await postToServer(event);
+  if (!sent) {
+    const safeSid = String(event.session_id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+    appendFileSync(join(SESSIONS_DIR, `${safeSid}.jsonl`), JSON.stringify(event) + '\n');
+  }
+}
+
 async function processEvent(payload) {
   const event = buildEvent(payload);
-  const sent = await postToServer(event);
-  if (!sent) appendFileSync(join(SESSIONS_DIR, `${event.session_id || 'unknown'}.jsonl`), JSON.stringify(event) + '\n');
+  await sendEvent(event);
+
+  // After agent_complete, parse transcript and emit attribution
+  if (eventType === 'agent_complete' && event.agent_transcript_path) {
+    try {
+      const toolUseIds = await parseTranscriptToolIds(event.agent_transcript_path);
+      if (toolUseIds.length) {
+        const attrEvent = {
+          id: `evt_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          session_id: event.session_id,
+          event_type: 'attribution',
+          timestamp: Date.now(),
+          agent_id: event.agent_id,
+          tool_use_ids: toolUseIds,
+        };
+        await sendEvent(attrEvent);
+      }
+    } catch { /* transcript unreadable — skip attribution */ }
+  }
 }

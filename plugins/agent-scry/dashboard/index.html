@@ -121,6 +121,32 @@ header .status .dot.disconnected {
   background: rgba(59, 130, 246, 0.2);
 }
 
+.session-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.session-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.session-toggle button {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border: none;
+  padding: 3px 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.session-toggle button.active {
+  background: rgba(59, 130, 246, 0.25);
+  color: var(--text-primary);
+}
 #session-select {
   background: var(--surface-2);
   color: var(--text-primary);
@@ -129,6 +155,7 @@ header .status .dot.disconnected {
   font-family: 'DM Mono', monospace;
   font-size: 11px;
   border-radius: 4px;
+  max-width: 280px;
 }
 
 /* ═══ PANELS ═══ */
@@ -973,7 +1000,13 @@ header .status .dot.disconnected {
   <header>
     <h1>AI SCRY</h1>
     <div class="controls">
-      <select id="session-select"><option value="">Current session</option></select>
+      <div class="session-controls">
+        <div class="session-toggle">
+          <button id="filter-active" class="active">Active</button>
+          <button id="filter-all">All</button>
+        </div>
+        <select id="session-select"><option value="">No sessions</option></select>
+      </div>
       <div class="status">
         <div class="dot" id="status-dot"></div>
         <span id="status-text">Connected</span>
@@ -1144,7 +1177,25 @@ const state = {
   userPrompts: [],
   agentStops: [],
   highlightedPromptIndex: null,
+  toolErrors: [],
+  permissions: [],
+  notifications: [],
 };
+
+let sessionFilter = 'active';
+let sessionsList = [];
+
+function relativeTime(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  const d = new Date(ts);
+  const mon = d.toLocaleString('en', { month: 'short' });
+  const day = d.getDate();
+  const time = d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
+  return `${mon} ${day} ${time}`;
+}
 
 // --- Time formatting ---
 
@@ -1244,17 +1295,52 @@ function ingestEvent(evt) {
     return;
   }
 
-  if (evt.event_type === 'agent_spawn' || (evt.event_type === 'tool_start' && evt.spawns_agent_id)) {
-    const agentId = evt.spawns_agent_id || evt.agent_id;
+  if (evt.event_type === 'agent_start') {
+    const agentId = evt.agent_id || 'ag_unknown';
     if (!state.agents.has(agentId)) {
-      const isSpawn = !!evt.spawns_agent_id;
       state.agents.set(agentId, {
         id: agentId,
-        parentId: isSpawn ? (evt.agent_id || null) : (evt.parent_agent_id || null),
-        label: evt.agent_spawn_label || evt.agent_label || 'unknown',
-        task: evt.agent_spawn_task || evt.task_description || '',
-        tags: evt.task_tags || [],
-        model: evt.agent_spawn_model || evt.model || null,
+        parentId: null,
+        label: evt.agent_type || 'unknown',
+        task: '',
+        tags: [],
+        model: null,
+        spawnTime: evt.timestamp,
+        endTime: null,
+        tokensIn: 0, tokensOut: 0, durationMs: 0,
+        status: 'running',
+        tools: [],
+        contributesTo: [],
+        agentType: evt.agent_type || null,
+      });
+    }
+    return;
+  }
+
+  if (evt.event_type === 'agent_spawn' || (evt.event_type === 'tool_start' && evt.spawns_agent_id)) {
+    const agentId = evt.spawns_agent_id || evt.agent_id;
+    const isSpawn = !!evt.spawns_agent_id;
+    const parentId = isSpawn ? (evt.agent_id || null) : (evt.parent_agent_id || null);
+    const label = evt.agent_spawn_label || evt.agent_label || null;
+    const task = evt.agent_spawn_task || evt.task_description || '';
+    const model = evt.agent_spawn_model || evt.model || null;
+    const tags = evt.task_tags || [];
+    if (state.agents.has(agentId)) {
+      // Enrich existing agent (created earlier by agent_start) with spawn details
+      const agent = state.agents.get(agentId);
+      if (!agent.parentId && parentId) agent.parentId = parentId;
+      if (label && agent.label === 'unknown') agent.label = label;
+      if (task && !agent.task) agent.task = task;
+      if (model && !agent.model) agent.model = model;
+      if (tags.length && !agent.tags.length) agent.tags = tags;
+    } else {
+      state.agents.set(agentId, {
+        id: agentId,
+        parentId,
+        label: label || 'unknown',
+        task,
+        tags,
+        model,
         spawnTime: evt.timestamp,
         endTime: null,
         tokensIn: 0,
@@ -1313,8 +1399,41 @@ function ingestEvent(evt) {
       agent.contributesTo = evt.contributes_to || [];
       agent.tags = evt.task_tags || agent.tags;
       if (evt.model && !agent.model) agent.model = evt.model;
+      if (!agent.parentId && evt.parent_agent_id) agent.parentId = evt.parent_agent_id;
       if (evt.transcript_path) agent.transcriptPath = evt.transcript_path;
     }
+  }
+
+  if (evt.event_type === 'attribution') {
+    const targetAgentId = evt.agent_id;
+    const ids = new Set(evt.tool_use_ids || []);
+    if (ids.size && state.agents.has(targetAgentId)) {
+      for (const tc of state.toolCalls) {
+        if (tc.toolUseId && ids.has(tc.toolUseId)) {
+          tc.agentId = targetAgentId;
+        }
+      }
+    }
+    return;
+  }
+
+  if (evt.event_type === 'tool_error') {
+    state.toolErrors.push({
+      id: evt.id,
+      toolName: evt.tool_name,
+      toolUseId: evt.tool_use_id || null,
+      timestamp: evt.timestamp,
+      error: evt.error || '',
+      agentId: evt.agent_id || 'ag_main',
+    });
+  }
+
+  if (evt.event_type === 'permission_request') {
+    state.permissions.push({ timestamp: evt.timestamp, toolName: evt.tool_name });
+  }
+
+  if (evt.event_type === 'notification') {
+    state.notifications.push({ timestamp: evt.timestamp, id: evt.id });
   }
 
   updateHistories();
@@ -1453,7 +1572,18 @@ function connectSSE() {
   evtSource = new EventSource('/api/events');
 
   evtSource.addEventListener('message', (e) => {
-    const evt = JSON.parse(e.data);
+    let evt;
+    try { evt = JSON.parse(e.data); } catch { return; }
+    if (evt.event_type === 'session_start' && sessionFilter === 'active') {
+      loadSessions().then(() => {
+        const sel = document.getElementById('session-select');
+        if (sel.options.length > 0) {
+          sel.selectedIndex = 0;
+          loadSession(sel.value);
+        }
+      });
+      return;
+    }
     ingestEvent(evt);
     resetIdleTimer();
     if (!state.paused) render();
@@ -1463,7 +1593,7 @@ function connectSSE() {
     document.getElementById('reconnect-banner').style.display = 'none';
     document.getElementById('status-dot').classList.remove('disconnected');
     document.getElementById('status-text').textContent = 'Connected';
-    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   };
 
   evtSource.onerror = () => {
@@ -1473,14 +1603,19 @@ function connectSSE() {
     evtSource.close();
     finalizeRunningAgents();
     if (!reconnectTimer) {
-      reconnectTimer = setInterval(connectSSE, 3000);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectSSE();
+      }, 3000);
     }
   };
 }
 
 async function loadSession(sessionId) {
+  try {
   const url = sessionId ? `/api/session?id=${sessionId}` : '/api/session';
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const events = await res.json();
   state.events = [];
   state.agents.clear();
@@ -1501,26 +1636,44 @@ async function loadSession(sessionId) {
   state.userPrompts = [];
   state.agentStops = [];
   state.highlightedPromptIndex = null;
+  state.toolErrors = [];
+  state.permissions = [];
+  state.notifications = [];
   contextLoaded = false;
   events.forEach(e => ingestEvent(e));
   const lastTs = events.length ? events[events.length - 1].timestamp : 0;
   if (lastTs && (Date.now() - lastTs > IDLE_THRESHOLD_MS)) finalizeRunningAgents();
   render();
+  } catch (err) {
+    console.warn('Failed to load session:', err);
+  }
 }
 
 async function loadSessions() {
   try {
     const res = await fetch('/api/sessions');
-    const sessions = await res.json();
-    const sel = document.getElementById('session-select');
-    sel.innerHTML = '<option value="">Current session</option>';
-    sessions.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.id;
-      sel.appendChild(opt);
-    });
+    sessionsList = await res.json();
+    renderSessionDropdown();
   } catch {}
+}
+
+function renderSessionDropdown() {
+  const sel = document.getElementById('session-select');
+  const filtered = sessionFilter === 'active'
+    ? sessionsList.filter(s => s.active)
+    : sessionsList;
+  sel.innerHTML = '';
+  if (filtered.length === 0) {
+    sel.innerHTML = '<option value="">No sessions</option>';
+    return;
+  }
+  filtered.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    const name = s.project || s.id.slice(0, 12);
+    opt.textContent = `${name} · ${relativeTime(s.startTime)}`;
+    sel.appendChild(opt);
+  });
 }
 
 // --- Render orchestration ---
@@ -1614,7 +1767,7 @@ function renderTimeline() {
           : (i % 2 === 1 ? 'rgba(234, 179, 8, 0.04)' : 'rgba(234, 179, 8, 0.015)'))
         .style('cursor', 'pointer')
         .on('click', () => highlightContextCycle(i))
-        .on('mouseenter', (e) => showTooltip(e, `<span class="label" style="color:var(--amber)">CTX ${i + 1}</span><br>Trigger: ${cycle.trigger}`))
+        .on('mouseenter', (e) => showTooltip(e, `<span class="label" style="color:var(--amber)">CTX ${i + 1}</span><br>Trigger: ${esc(cycle.trigger)}`))
         .on('mouseleave', hideTooltip);
     });
   }
@@ -1699,11 +1852,11 @@ function renderTimeline() {
         .attr('rx', 3)
         .attr('fill', tcColor).attr('opacity', tc.hasError ? 0.95 : 0.8)
         .on('mouseenter', (e) => {
-          let tip = `<span class="label">${tc.toolName}</span>`;
+          let tip = `<span class="label">${esc(tc.toolName)}</span>`;
           if (tc.hasError) tip += ' <span style="color:var(--red)">ERROR</span>';
-          tip += `<br><span class="dim">${tc.params}</span>`;
-          if (tc.responseSummary) tip += `<br><span class="dim">${tc.responseSummary}</span>`;
-          if (tc.cwd && tc.toolName === 'Bash') tip += `<br><span class="dim">cwd: ${tc.cwd}</span>`;
+          tip += `<br><span class="dim">${esc(tc.params)}</span>`;
+          if (tc.responseSummary) tip += `<br><span class="dim">${esc(tc.responseSummary)}</span>`;
+          if (tc.cwd && tc.toolName === 'Bash') tip += `<br><span class="dim">cwd: ${esc(tc.cwd)}</span>`;
           showTooltip(e, tip);
         })
         .on('mouseleave', hideTooltip);
@@ -1771,7 +1924,7 @@ function renderTimeline() {
       .attr('class', 'compaction-marker')
       .attr('x1', cx).attr('y1', 0).attr('x2', cx).attr('y2', height - margin.bottom)
       .on('click', () => openCompactionDrawer(i, c))
-      .on('mouseenter', (e) => showTooltip(e, `<span class="label" style="color:var(--amber)">Compaction C${i + 1}</span><br>Trigger: ${c.trigger}<br>${formatTime(c.timestamp, xMin)}`))
+      .on('mouseenter', (e) => showTooltip(e, `<span class="label" style="color:var(--amber)">Compaction C${i + 1}</span><br>Trigger: ${esc(c.trigger)}<br>${formatTime(c.timestamp, xMin)}`))
       .on('mouseleave', hideTooltip);
     g.append('text')
       .attr('class', 'compaction-label')
@@ -1811,7 +1964,7 @@ function renderTimeline() {
   legend.innerHTML = [...usedTools].filter(n => !['EnterPlanMode','ExitPlanMode','TaskCreate','TaskUpdate','TaskList','TaskGet'].includes(n)).slice(0, 8).map(name => {
     const c = toolColors[name] || defaultToolColor;
     const short = name.length > 10 ? name.slice(0, 9) + '\u2026' : name;
-    return `<span style="display:flex;align-items:center;gap:3px" title="${name}"><span style="width:7px;height:7px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>${short}</span>`;
+    return `<span style="display:flex;align-items:center;gap:3px" title="${esc(name)}"><span style="width:7px;height:7px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>${esc(short)}</span>`;
   }).join('');
 
   // X-axis with smart formatting
@@ -1925,6 +2078,14 @@ function renderTimeline() {
         const ow = parseFloat(el.attr('data-ow'));
         el.attr('x', newX(ox)).attr('width', Math.max(newX(ox + ow) - newX(ox), 1));
       });
+      g.selectAll('.skill-marker').each(function() {
+        const el = d3.select(this);
+        const ox = parseFloat(el.attr('data-ox'));
+        const cy = parseFloat(el.attr('data-cy'));
+        const sx = newX(ox);
+        const d = 6;
+        el.attr('d', `M${sx},${cy - d} L${sx + d},${cy} L${sx},${cy + d} L${sx - d},${cy} Z`);
+      });
       svg.select('.x-axis').call(d3.axisBottom(newX).ticks(6).tickFormat(d => formatTime(d, xMin)));
       hoverG.style('display', 'none');
     });
@@ -1998,6 +2159,17 @@ function renderTimeline() {
     el.attr('data-ox', x.invert(parseFloat(el.attr('x'))));
     el.attr('data-ow', x.invert(parseFloat(el.attr('x')) + parseFloat(el.attr('width'))) - x.invert(parseFloat(el.attr('x'))));
   });
+  g.selectAll('.skill-marker').each(function() {
+    const el = d3.select(this);
+    const dAttr = el.attr('d');
+    const match = dAttr.match(/^M([\d.]+),([\d.]+)/);
+    if (match) {
+      const cx = parseFloat(match[1]);
+      const cy = parseFloat(match[2]) + 6;
+      el.attr('data-ox', x.invert(cx));
+      el.attr('data-cy', cy);
+    }
+  });
 
   svg.call(zoom);
 }
@@ -2040,17 +2212,17 @@ function getDepth(agentId) {
 function agentTooltipHtml(a) {
   const tokens = a.tokensIn + a.tokensOut;
   const dur = a.endTime ? ((a.endTime - a.spawnTime) / 1000).toFixed(1) + 's' : 'running';
-  let tip = `<span class="label">${a.label}</span> ${a.id.slice(-8)}`;
-  if (a.model) tip += ` <span class="dim">[${a.model}]</span>`;
+  let tip = `<span class="label">${esc(a.label)}</span> ${esc(a.id.slice(-8))}`;
+  if (a.model) tip += ` <span class="dim">[${esc(a.model)}]</span>`;
   tip += '<br>';
-  if (a.task) tip += `<span class="dim">${a.task.slice(0, 120)}</span><br>`;
-  tip += `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>Status: ${a.status}`;
+  if (a.task) tip += `<span class="dim">${esc(a.task.slice(0, 120))}</span><br>`;
+  tip += `Tokens: ${tokens.toLocaleString()} · Duration: ${dur}<br>Status: ${esc(a.status)}`;
   // Task associations
   const agentTasks = [...state.tasks.values()].filter(t =>
     (t.owner && a.id.includes(t.owner)) || (a.task && t.subject && fuzzyMatch(a.task, t.subject))
   );
   if (agentTasks.length > 0) {
-    tip += `<br><span class="dim">Tasks: ${agentTasks.map(t => t.subject).join(', ')}</span>`;
+    tip += `<br><span class="dim">Tasks: ${agentTasks.map(t => esc(t.subject)).join(', ')}</span>`;
   }
   return tip;
 }
@@ -2071,13 +2243,7 @@ function nodeTooltipHtml(d) {
       tip += `<br><span class="dim" style="font-style:italic">Click for details</span>`;
       return tip;
     }
-    // Legacy source node
-    let tip = `<span class="label">${esc(d.name)}</span>`;
-    tip += `<br><span class="dim">Trigger: ${esc(d.trigger || 'session_start')}</span>`;
-    tip += `<br><span class="dim">CTX ${(d.cycleIndex || 0) + 1}</span>`;
-    if (d.tokens) tip += `<br>Tokens: ${d.tokens.toLocaleString()}`;
-    tip += `<br><span class="dim" style="font-style:italic">Click for details</span>`;
-    return tip;
+    return esc(d.name);
   }
   if (d.column === 1) {
     // Main Agent node
@@ -2087,8 +2253,8 @@ function nodeTooltipHtml(d) {
     let tip = `<span class="label">Main Agent</span>`;
     if (d.promptIndex !== undefined) tip += ` <span class="dim">Turn ${d.promptIndex + 1}</span>`;
     if (d.subAgentCount !== undefined) tip += `<br>${d.subAgentCount} sub-agents dispatched`;
-    if (d.model) tip += `<br>Model: ${d.model}`;
-    if (tools.length > 0) tip += `<br>${Object.entries(cats).map(([k, v]) => `${v} ${k}`).join(', ')}`;
+    if (d.model) tip += `<br>Model: ${esc(d.model)}`;
+    if (tools.length > 0) tip += `<br>${Object.entries(cats).map(([k, v]) => `${v} ${esc(k)}`).join(', ')}`;
     if (d.tokens) tip += ` · ${d.tokens.toLocaleString()} tok`;
     tip += `<br><span class="dim" style="font-style:italic">Click for details</span>`;
     return tip;
@@ -2101,7 +2267,7 @@ function nodeTooltipHtml(d) {
       tools.forEach(tc => { cats[tc.toolName] = (cats[tc.toolName] || 0) + 1; });
       let tip = `<span class="label">Direct Work</span>`;
       if (d.promptIndex !== undefined) tip += ` <span class="dim">Turn ${d.promptIndex + 1}</span>`;
-      if (tools.length > 0) tip += `<br>${Object.entries(cats).map(([k, v]) => `${v} ${k}`).join(', ')}`;
+      if (tools.length > 0) tip += `<br>${Object.entries(cats).map(([k, v]) => `${v} ${esc(k)}`).join(', ')}`;
       if (d.tokens) tip += ` · ${d.tokens.toLocaleString()} tok`;
       tip += `<br><span class="dim" style="font-style:italic">Click for details</span>`;
       return tip;
@@ -2207,14 +2373,6 @@ function renderSankey() {
     'feature-dev:code-reviewer': 'Review code',
   };
 
-  // Context cycles — always available for swim-lanes
-  const cycles = state.contextCycles.length > 0
-    ? state.contextCycles
-    : [{ index: 0, trigger: 'session_start', startTime: state.sessionStart || 0, endTime: null }];
-  const triggerLabels = { session_start: 'Root prompt', auto: 'Post-compact (auto)', manual: 'Post-compact (manual)', clear: 'Post-clear' };
-
-  const hasPrompts = state.userPrompts.length > 0;
-
   // Helper: find context cycle index for a timestamp
   const cycleForTimestamp = (ts) => {
     const idx = state.contextCycles.findIndex((c, ci) => {
@@ -2226,7 +2384,6 @@ function renderSankey() {
 
   // Helper: find prompt index for an agent (most recent prompt before spawn)
   const promptForAgent = (a) => {
-    if (!hasPrompts) return 0;
     let pi = 0;
     for (let i = state.userPrompts.length - 1; i >= 0; i--) {
       if (a.spawnTime >= state.userPrompts[i].timestamp) { pi = i; break; }
@@ -2234,116 +2391,69 @@ function renderSankey() {
     return pi;
   };
 
-  // Column 0: Source nodes
-  if (hasPrompts) {
-    // Prompt-oriented sources
-    const maxLabelLen = state.userPrompts.length > 6 ? 30 : 40;
-    state.userPrompts.forEach((prompt, i) => {
-      const sourceId = `prompt_${i}`;
-      const label = prompt.text.slice(0, maxLabelLen) + (prompt.text.length > maxLabelLen ? '...' : '');
-      const nextPromptTime = state.userPrompts[i + 1]?.timestamp || state.sessionEndTime || Date.now();
-      const promptAgents = subAgents.filter(a =>
-        a.spawnTime >= prompt.timestamp && a.spawnTime < nextPromptTime
-      );
-      const mainTools = state.toolCalls.filter(tc =>
-        tc.agentId === 'ag_main' && tc.startTime >= prompt.timestamp && tc.startTime < nextPromptTime
-      );
-      const promptTokens = promptAgents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0)
-        + mainTools.reduce((s, tc) => s + (tc.tokensIn || 0) + (tc.tokensOut || 0), 0);
-      const cycleIdx = cycleForTimestamp(prompt.timestamp);
-      nodeMap.set(sourceId, {
-        id: sourceId, name: label, column: 0,
-        cycleIndex: cycleIdx, promptIndex: i,
-        promptText: prompt.text, tokens: promptTokens || 1,
-        timestamp: prompt.timestamp, agentId: 'ag_main',
-        isPromptSource: true,
-      });
+  // Column 0: Source nodes (one per user prompt)
+  const maxLabelLen = state.userPrompts.length > 6 ? 30 : 40;
+  state.userPrompts.forEach((prompt, i) => {
+    const sourceId = `prompt_${i}`;
+    const label = prompt.text.slice(0, maxLabelLen) + (prompt.text.length > maxLabelLen ? '...' : '');
+    const nextPromptTime = state.userPrompts[i + 1]?.timestamp || state.sessionEndTime || Date.now();
+    const promptAgents = subAgents.filter(a =>
+      a.spawnTime >= prompt.timestamp && a.spawnTime < nextPromptTime
+    );
+    const mainTools = state.toolCalls.filter(tc =>
+      tc.agentId === 'ag_main' && tc.startTime >= prompt.timestamp && tc.startTime < nextPromptTime
+    );
+    const promptTokens = promptAgents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0)
+      + mainTools.reduce((s, tc) => s + (tc.tokensIn || 0) + (tc.tokensOut || 0), 0);
+    const cycleIdx = cycleForTimestamp(prompt.timestamp);
+    nodeMap.set(sourceId, {
+      id: sourceId, name: label, column: 0,
+      cycleIndex: cycleIdx, promptIndex: i,
+      promptText: prompt.text, tokens: promptTokens || 1,
+      timestamp: prompt.timestamp, agentId: 'ag_main',
+      isPromptSource: true,
     });
-  } else {
-    // TODO: remove after prompt-oriented Sankey is verified
-    // Fallback: per-cycle source nodes (old behavior)
-    cycles.forEach((cycle, i) => {
-      const sourceId = `ctx_source_${i}`;
-      const name = triggerLabels[cycle.trigger] || `CTX ${i + 1}`;
-      const cycleAgents = subAgents.filter(a => isAgentInContextCycle(a, i));
-      const cycleTok = cycleAgents.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
-      nodeMap.set(sourceId, {
-        id: sourceId, name, column: 0, cycleIndex: i,
-        trigger: cycle.trigger, tokens: cycleTok || Math.round(mainTokens / cycles.length),
-        agentId: mainAgent?.id || null,
-        startTime: cycle.startTime, endTime: cycle.endTime,
-      });
-    });
-  }
+  });
 
-  // Column 1: Main Agent nodes (one per prompt or per cycle)
+  // Column 1: Main Agent nodes (one per prompt)
   const mainAgentMap = new Map();
-  if (hasPrompts) {
-    state.userPrompts.forEach((prompt, i) => {
-      const nextPromptTime = state.userPrompts[i + 1]?.timestamp || state.sessionEndTime || Date.now();
-      const mainTools = state.toolCalls.filter(tc =>
-        tc.agentId === 'ag_main' && tc.startTime >= prompt.timestamp && tc.startTime < nextPromptTime
-      );
-      const promptSubAgents = subAgents.filter(a =>
-        a.spawnTime >= prompt.timestamp && a.spawnTime < nextPromptTime
-      );
-      const toolTokens = mainTools.reduce((s, tc) => s + (tc.tokensIn || 0) + (tc.tokensOut || 0), 0);
-      const cycleIdx = cycleForTimestamp(prompt.timestamp);
-      mainAgentMap.set(`main_${i}`, {
-        id: `main_${i}`, name: 'Main Agent', column: 1,
-        cycleIndex: cycleIdx, promptIndex: i,
-        tokens: toolTokens || 1,
-        isMainAgentWork: true,
-        mainToolCalls: mainTools,
-        subAgentCount: promptSubAgents.length,
-        model: mainAgent?.model || null,
-      });
+  state.userPrompts.forEach((prompt, i) => {
+    const nextPromptTime = state.userPrompts[i + 1]?.timestamp || state.sessionEndTime || Date.now();
+    const mainTools = state.toolCalls.filter(tc =>
+      tc.agentId === 'ag_main' && tc.startTime >= prompt.timestamp && tc.startTime < nextPromptTime
+    );
+    const promptSubAgents = subAgents.filter(a =>
+      a.spawnTime >= prompt.timestamp && a.spawnTime < nextPromptTime
+    );
+    const toolTokens = mainTools.reduce((s, tc) => s + (tc.tokensIn || 0) + (tc.tokensOut || 0), 0);
+    const cycleIdx = cycleForTimestamp(prompt.timestamp);
+    mainAgentMap.set(`main_${i}`, {
+      id: `main_${i}`, name: 'Main Agent', column: 1,
+      cycleIndex: cycleIdx, promptIndex: i,
+      tokens: toolTokens || 1,
+      isMainAgentWork: true,
+      mainToolCalls: mainTools,
+      subAgentCount: promptSubAgents.length,
+      model: mainAgent?.model || null,
     });
-  } else {
-    cycles.forEach((cycle, i) => {
-      const cycleEnd = cycle.endTime || state.sessionEndTime || Date.now();
-      const cycleMainTools = state.toolCalls.filter(tc =>
-        tc.agentId === 'ag_main' && tc.startTime >= cycle.startTime && tc.startTime < cycleEnd
-      );
-      const toolTokens = cycleMainTools.reduce((s, tc) => s + (tc.tokensIn || 0) + (tc.tokensOut || 0), 0);
-      const cycleSubAgents = subAgents.filter(a => isAgentInContextCycle(a, i));
-      mainAgentMap.set(`main_ctx_${i}`, {
-        id: `main_ctx_${i}`, name: 'Main Agent', column: 1,
-        cycleIndex: i,
-        tokens: toolTokens || 1,
-        isMainAgentWork: true,
-        mainToolCalls: cycleMainTools,
-        subAgentCount: cycleSubAgents.length,
-        model: mainAgent?.model || null,
-      });
-    });
-  }
+  });
   mainAgentMap.forEach(v => nodeMap.set(v.id, v));
 
   // Column 2: Decomposition phase nodes
   const phaseMap = new Map();
 
-  // Sub-agent phase nodes — keyed by label + promptIndex (or cycleIndex for legacy)
+  // Sub-agent phase nodes — keyed by label + promptIndex
   subAgents.forEach(a => {
     const label = a.label || 'unknown';
-    let groupIdx, cycleIdx;
-    if (hasPrompts) {
-      groupIdx = promptForAgent(a);
-      cycleIdx = cycleForTimestamp(a.spawnTime);
-    } else {
-      const ci = cycles.length > 1
-        ? cycles.findIndex((_, i) => isAgentInContextCycle(a, i))
-        : 0;
-      groupIdx = ci >= 0 ? ci : 0;
-      cycleIdx = groupIdx;
-    }
-    const key = hasPrompts ? `${label}_p${groupIdx}` : `${label}_${groupIdx}`;
+    const groupIdx = promptForAgent(a);
+    const cycleIdx = cycleForTimestamp(a.spawnTime);
+    const key = `${label}_p${groupIdx}`;
     if (!phaseMap.has(key)) {
       phaseMap.set(key, {
-        id: `phase_${label}_${hasPrompts ? 'p' + groupIdx : groupIdx}`,
+        id: `phase_${label}_p${groupIdx}`,
         name: phaseNames[label] || label,
         column: 2, cycleIndex: cycleIdx,
-        promptIndex: hasPrompts ? groupIdx : undefined,
+        promptIndex: groupIdx,
         tokens: 0, agents: [],
         color: agentColors[label] || '#9ca3af',
       });
@@ -2353,52 +2463,29 @@ function renderSankey() {
     phase.agents.push(a);
   });
 
-  // Fallback: Direct Work or placeholder for prompts/cycles with no sub-agent phases
-  if (hasPrompts) {
-    state.userPrompts.forEach((prompt, i) => {
-      const hasPhase = [...phaseMap.values()].some(p => p.promptIndex === i);
-      if (!hasPhase) {
-        const mainNode = mainAgentMap.get(`main_${i}`);
-        const mainTools = mainNode?.mainToolCalls || [];
-        if (mainTools.length > 0) {
-          phaseMap.set(`direct_work_p${i}`, {
-            id: `phase_direct_p${i}`, name: 'Direct Work',
-            column: 2, cycleIndex: cycleForTimestamp(prompt.timestamp),
-            promptIndex: i, tokens: mainNode.tokens || 1, agents: [],
-            color: '#6b7280', isDirectWork: true, mainToolCalls: mainTools,
-          });
-        } else {
-          phaseMap.set(`unknown_p${i}`, {
-            id: `phase_unknown_p${i}`, name: 'Main Task',
-            column: 2, cycleIndex: cycleForTimestamp(prompt.timestamp),
-            promptIndex: i, tokens: 1, agents: [],
-            color: '#9ca3af',
-          });
-        }
+  // Fallback: Direct Work or placeholder for prompts with no sub-agent phases
+  state.userPrompts.forEach((prompt, i) => {
+    const hasPhase = [...phaseMap.values()].some(p => p.promptIndex === i);
+    if (!hasPhase) {
+      const mainNode = mainAgentMap.get(`main_${i}`);
+      const mainTools = mainNode?.mainToolCalls || [];
+      if (mainTools.length > 0) {
+        phaseMap.set(`direct_work_p${i}`, {
+          id: `phase_direct_p${i}`, name: 'Direct Work',
+          column: 2, cycleIndex: cycleForTimestamp(prompt.timestamp),
+          promptIndex: i, tokens: mainNode.tokens || 1, agents: [],
+          color: '#6b7280', isDirectWork: true, mainToolCalls: mainTools,
+        });
+      } else {
+        phaseMap.set(`unknown_p${i}`, {
+          id: `phase_unknown_p${i}`, name: 'Main Task',
+          column: 2, cycleIndex: cycleForTimestamp(prompt.timestamp),
+          promptIndex: i, tokens: 1, agents: [],
+          color: '#9ca3af',
+        });
       }
-    });
-  } else {
-    cycles.forEach((cycle, i) => {
-      const hasPhase = [...phaseMap.values()].some(p => p.cycleIndex === i);
-      if (!hasPhase) {
-        const mainNode = mainAgentMap.get(`main_ctx_${i}`);
-        const mainTools = mainNode?.mainToolCalls || [];
-        if (mainTools.length > 0) {
-          phaseMap.set(`direct_work_${i}`, {
-            id: `phase_direct_${i}`, name: 'Direct Work',
-            column: 2, cycleIndex: i, tokens: mainNode.tokens || 1, agents: [],
-            color: '#6b7280', isDirectWork: true, mainToolCalls: mainTools,
-          });
-        } else {
-          phaseMap.set(`unknown_${i}`, {
-            id: `phase_unknown_${i}`, name: 'Main Task',
-            column: 2, cycleIndex: i, tokens: 1, agents: [],
-            color: '#9ca3af',
-          });
-        }
-      }
-    });
-  }
+    }
+  });
 
   phaseMap.forEach(v => nodeMap.set(v.id, v));
 
@@ -2407,34 +2494,18 @@ function renderSankey() {
     const mainId = mainNode.id;
     let totalFlow = 0;
     phaseMap.forEach(phase => {
-      if (hasPrompts) {
-        if (phase.promptIndex === mainNode.promptIndex) totalFlow += Math.max(phase.tokens, 1);
-      } else {
-        if (phase.cycleIndex === mainNode.cycleIndex) totalFlow += Math.max(phase.tokens, 1);
-      }
+      if (phase.promptIndex === mainNode.promptIndex) totalFlow += Math.max(phase.tokens, 1);
     });
     totalFlow = Math.max(totalFlow, 1);
-    if (hasPrompts) {
-      const sourceId = `prompt_${mainNode.promptIndex}`;
-      if (nodeMap.has(sourceId)) links.push({ source: sourceId, target: mainId, value: totalFlow });
-    } else {
-      const sourceId = `ctx_source_${mainNode.cycleIndex}`;
-      if (nodeMap.has(sourceId)) links.push({ source: sourceId, target: mainId, value: totalFlow });
-    }
+    const sourceId = `prompt_${mainNode.promptIndex}`;
+    if (nodeMap.has(sourceId)) links.push({ source: sourceId, target: mainId, value: totalFlow });
   });
 
   // Main Agent → Decomposition phase links
   phaseMap.forEach(phase => {
-    if (hasPrompts) {
-      const mainId = phase.promptIndex !== undefined ? `main_${phase.promptIndex}` : null;
-      if (mainId && nodeMap.has(mainId)) {
-        links.push({ source: mainId, target: phase.id, value: Math.max(phase.tokens, 1) });
-      }
-    } else {
-      const mainId = `main_ctx_${phase.cycleIndex}`;
-      if (nodeMap.has(mainId)) {
-        links.push({ source: mainId, target: phase.id, value: Math.max(phase.tokens, 1) });
-      }
+    const mainId = phase.promptIndex !== undefined ? `main_${phase.promptIndex}` : null;
+    if (mainId && nodeMap.has(mainId)) {
+      links.push({ source: mainId, target: phase.id, value: Math.max(phase.tokens, 1) });
     }
   });
 
@@ -2471,7 +2542,7 @@ function renderSankey() {
     const abbr = modelAbbr(a.model);
     const name = abbr ? `${abbr} ${a.id.slice(-6)}` : a.id.slice(-6);
     nodeMap.set(a.id, { id: a.id, name, column: 3, tokens, status: a.status, label: a.label,
-      promptIndex: hasPrompts ? promptForAgent(a) : undefined,
+      promptIndex: promptForAgent(a),
     });
   });
 
@@ -2479,16 +2550,8 @@ function renderSankey() {
   agentList.forEach(a => {
     const w = agentWeight(a);
     const label = a.label || 'unknown';
-    let key;
-    if (hasPrompts) {
-      const pi = promptForAgent(a);
-      key = `${label}_p${pi}`;
-    } else {
-      const ci = cycles.length > 1
-        ? cycles.findIndex((_, i) => isAgentInContextCycle(a, i))
-        : 0;
-      key = `${label}_${ci >= 0 ? ci : 0}`;
-    }
+    const pi = promptForAgent(a);
+    const key = `${label}_p${pi}`;
     const phase = phaseMap.get(key);
     if (phase) {
       links.push({ source: phase.id, target: a.id, value: w });
@@ -2500,18 +2563,13 @@ function renderSankey() {
   const agentOutcomes = new Map(); // agentId → { read, written, errors }
   const promptOutcomes = new Map(); // key → { read, written, errors, running }
 
-  // Initialize per-prompt/cycle outcome buckets
-  if (hasPrompts) {
-    state.userPrompts.forEach((_, i) => promptOutcomes.set(i, { read: 0, written: 0, errors: 0, running: false }));
-  } else {
-    cycles.forEach((_, i) => promptOutcomes.set(i, { read: 0, written: 0, errors: 0, running: false }));
-  }
+  // Initialize per-prompt outcome buckets
+  state.userPrompts.forEach((_, i) => promptOutcomes.set(i, { read: 0, written: 0, errors: 0, running: false }));
 
   // Count sub-agent file ops per chain
   agentList.forEach(a => {
     const ao = { read: 0, written: 0, errors: 0 };
-    const pi = hasPrompts ? promptForAgent(a) : (cycles.length > 1
-      ? Math.max(0, cycles.findIndex((_, i) => isAgentInContextCycle(a, i))) : 0);
+    const pi = promptForAgent(a);
     const po = promptOutcomes.get(pi) || promptOutcomes.values().next().value;
     const tools = state.toolCalls.filter(t => t.agentId === a.id);
     tools.forEach(tc => {
@@ -2528,7 +2586,7 @@ function renderSankey() {
   phaseMap.forEach((phase, key) => {
     if (!phase.isDirectWork) return;
     const ao = { read: 0, written: 0, errors: 0 };
-    const pi = hasPrompts ? phase.promptIndex : (phase.cycleIndex || 0);
+    const pi = phase.promptIndex;
     const po = promptOutcomes.get(pi) || promptOutcomes.values().next().value;
     (phase.mainToolCalls || []).forEach(tc => {
       if (tc.hasError) { ao.errors++; po.errors++; }
@@ -2538,43 +2596,41 @@ function renderSankey() {
     mainWorkOutcomes.set(phase.id, ao);
   });
 
-  // Create per-prompt/cycle outcome nodes
+  // Create per-prompt outcome nodes
   promptOutcomes.forEach((po, idx) => {
-    const ci = hasPrompts ? cycleForTimestamp(state.userPrompts[idx]?.timestamp || 0) : idx;
-    const suffix = hasPrompts ? `p${idx}` : `c${idx}`;
+    const ci = cycleForTimestamp(state.userPrompts[idx]?.timestamp || 0);
+    const suffix = `p${idx}`;
     let created = false;
     if (po.read > 0) {
       const id = `out_read_${suffix}`;
       outcomeMap.set(id, { id, name: `${po.read} read`, column: 4, status: 'success', outcomeType: 'read',
-        promptIndex: hasPrompts ? idx : undefined, cycleIndex: ci });
+        promptIndex: idx, cycleIndex: ci });
       created = true;
     }
     if (po.written > 0) {
       const id = `out_written_${suffix}`;
       outcomeMap.set(id, { id, name: `${po.written} written`, column: 4, status: 'success', outcomeType: 'written',
-        promptIndex: hasPrompts ? idx : undefined, cycleIndex: ci });
+        promptIndex: idx, cycleIndex: ci });
       created = true;
     }
     if (po.errors > 0) {
       const id = `out_errors_${suffix}`;
       outcomeMap.set(id, { id, name: `${po.errors} errors`, column: 4, status: 'error', outcomeType: 'errors',
-        promptIndex: hasPrompts ? idx : undefined, cycleIndex: ci });
+        promptIndex: idx, cycleIndex: ci });
       created = true;
     }
     if (po.running) {
       const id = `out_running_${suffix}`;
       outcomeMap.set(id, { id, name: 'In Progress', column: 4, status: 'running', outcomeType: 'running',
-        promptIndex: hasPrompts ? idx : undefined, cycleIndex: ci });
+        promptIndex: idx, cycleIndex: ci });
       created = true;
     }
     if (!created) {
-      const hasContent = hasPrompts
-        ? [...phaseMap.values()].some(p => p.promptIndex === idx)
-        : [...phaseMap.values()].some(p => p.cycleIndex === idx);
+      const hasContent = [...phaseMap.values()].some(p => p.promptIndex === idx);
       if (hasContent) {
         const id = `out_done_${suffix}`;
         outcomeMap.set(id, { id, name: 'Completed', column: 4, status: 'success', outcomeType: 'done',
-          promptIndex: hasPrompts ? idx : undefined, cycleIndex: ci });
+          promptIndex: idx, cycleIndex: ci });
       }
     }
   });
@@ -2585,9 +2641,8 @@ function renderSankey() {
   agentList.forEach(a => {
     const ao = agentOutcomes.get(a.id);
     const w = agentWeight(a);
-    const pi = hasPrompts ? promptForAgent(a) : (cycles.length > 1
-      ? Math.max(0, cycles.findIndex((_, i) => isAgentInContextCycle(a, i))) : 0);
-    const suffix = hasPrompts ? `p${pi}` : `c${pi}`;
+    const pi = promptForAgent(a);
+    const suffix = `p${pi}`;
     if (a.status === 'running' && outcomeMap.has(`out_running_${suffix}`)) {
       links.push({ source: a.id, target: `out_running_${suffix}`, value: w, agentStatus: 'running' });
       return;
@@ -2612,8 +2667,8 @@ function renderSankey() {
     const phase = nodeMap.get(phaseId);
     if (!phase) return;
     const w = phase.tokens || 1;
-    const pi = hasPrompts ? phase.promptIndex : (phase.cycleIndex || 0);
-    const suffix = hasPrompts ? `p${pi}` : `c${pi}`;
+    const pi = phase.promptIndex;
+    const suffix = `p${pi}`;
     const totalOps = ao.read + ao.written + ao.errors;
     if (totalOps > 0) {
       if (ao.read > 0 && outcomeMap.has(`out_read_${suffix}`))
@@ -2634,7 +2689,7 @@ function renderSankey() {
 
   const sankeyLinks = links
     .filter(l => nodeIndex.has(l.source) && nodeIndex.has(l.target) && l.source !== l.target)
-    .map(l => ({ source: nodeIndex.get(l.source), target: nodeIndex.get(l.target), value: l.value, agentStatus: l.agentStatus }));
+    .map(l => ({ source: nodeIndex.get(l.source), target: nodeIndex.get(l.target), value: 1, metricValue: l.value, agentStatus: l.agentStatus }));
 
   if (nodes.length < 2 || sankeyLinks.length === 0) return;
 
@@ -2665,22 +2720,20 @@ function renderSankey() {
       }
     });
 
-    if (state.contextCycles.length > 1 || cycles.length > 1 || hasPrompts) {
-      sankeyGen.nodeSort((a, b) => {
-        if (a.cycleIndex !== b.cycleIndex) return a.cycleIndex - b.cycleIndex;
-        if (hasPrompts && a.promptIndex !== undefined && b.promptIndex !== undefined) {
-          return a.promptIndex - b.promptIndex;
-        }
-        return 0;
-      });
-    }
+    sankeyGen.nodeSort((a, b) => {
+      if (a.cycleIndex !== b.cycleIndex) return a.cycleIndex - b.cycleIndex;
+      if (a.promptIndex !== undefined && b.promptIndex !== undefined) {
+        return a.promptIndex - b.promptIndex;
+      }
+      return 0;
+    });
 
     const { nodes: sNodes, links: sLinks } = sankeyGen({
       nodes: nodes.map((n, i) => ({ ...n, index: i })),
       links: sankeyLinks,
     });
 
-    const colWidths = { 0: hasPrompts ? 140 : 120, 1: 100, 2: 130, 3: 60, 4: 90 };
+    const colWidths = { 0: 140, 1: 100, 2: 130, 3: 60, 4: 90 };
 
     const nodeColor = (d) => {
       if (d.column === 0) return 'var(--accent)';
@@ -2723,7 +2776,7 @@ function renderSankey() {
     const g = svg.append('g');
 
     // Column headers
-    const headers = [hasPrompts ? 'PROMPTS' : 'SOURCE', 'MAIN AGENT', 'DECOMPOSITION', 'AGENTS', 'OUTCOMES'];
+    const headers = ['PROMPTS', 'MAIN AGENT', 'DECOMPOSITION', 'AGENTS', 'OUTCOMES'];
     headers.forEach((label, col) => {
       const colNodes = sNodes.filter(n => n.column === col);
       if (!colNodes.length) return;
@@ -2749,7 +2802,7 @@ function renderSankey() {
           .attr('rx', 6).attr('fill', laneColors[i % laneColors.length])
           .attr('cursor', 'pointer')
           .on('click', () => highlightContextCycle(i))
-          .on('mouseenter', (e) => showTooltip(e, `<span class="label">CTX ${i + 1}</span><br><span class="dim">${cycle.trigger} · Click to highlight</span>`))
+          .on('mouseenter', (e) => showTooltip(e, `<span class="label">CTX ${i + 1}</span><br><span class="dim">${esc(cycle.trigger)} · Click to highlight</span>`))
           .on('mouseleave', hideTooltip);
         // Lane label
         g.insert('text', ':first-child')
@@ -2809,10 +2862,13 @@ function renderSankey() {
       })
       .attr('d', linkPath)
       .attr('stroke', (d, i) => `url(#sg-${i})`)
-      .attr('stroke-width', d => Math.min(Math.max(d.width, 2), 24))
+      .attr('stroke-width', (() => {
+        const maxMetric = d3.max(sLinks, l => l.metricValue) || 1;
+        return d => Math.max((d.metricValue / maxMetric) * 20, 1.5);
+      })())
       .on('mouseenter', (e, d) => {
         const metricLabel = { tokens: 'Tokens', tools: 'Tool calls', equal: 'Weight' }[metric] || 'Value';
-        let tip = `${d.source.name} → ${d.target.name}<br>${metricLabel}: ${Math.round(d.value).toLocaleString()}`;
+        let tip = `${esc(d.source.name)} → ${esc(d.target.name)}<br>${metricLabel}: ${Math.round(d.metricValue).toLocaleString()}`;
         // Phase→agent links: show agent task preview
         if (d.source.column === 2 && d.target.column === 3) {
           const agent = state.agents.get(d.target.id);
@@ -2874,7 +2930,7 @@ function renderSankey() {
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
       .text(d => {
-        const maxLen = { 0: hasPrompts ? 20 : 16, 1: 14, 2: 18, 3: 9, 4: 14 }[d.column] || 16;
+        const maxLen = { 0: 20, 1: 14, 2: 18, 3: 9, 4: 14 }[d.column] || 16;
         return d.name.length > maxLen ? d.name.slice(0, maxLen - 1) + '\u2026' : d.name;
       });
 
@@ -2970,9 +3026,9 @@ function renderAgentTable() {
     const selected = state.selectedAgentId === a.id ? 'selected' : '';
     const statusLabel = a.status === 'running' ? 'Active' : a.status === 'error' ? 'Error' : 'Done';
     const modelTag = a.model ? ` <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);opacity:0.7;margin-left:4px;padding:1px 5px;background:rgba(255,255,255,0.04);border-radius:3px">${esc(a.model)}</span>` : '';
-    return `<div class="agent-card ${selected}" data-agent-id="${a.id}">
+    return `<div class="agent-card ${selected}" data-agent-id="${esc(a.id)}">
       <div class="agent-card-top">
-        <span class="agent-card-name">${a.label} ${a.id.slice(-6)}${modelTag}</span>
+        <span class="agent-card-name">${esc(a.label)} ${esc(a.id.slice(-6))}${modelTag}</span>
         <span class="agent-status-pill ${statusClass}"><span class="pill-dot"></span>${statusLabel}</span>
       </div>
       <div class="agent-card-meta">
@@ -3569,9 +3625,9 @@ function openPhaseDrawer(node) {
       const tokens = a.tokensIn + a.tokensOut;
       const dur = a.endTime ? ((a.endTime - a.spawnTime) / 1000).toFixed(1) + 's' : 'running';
       const statusCls = a.status === 'error' ? 'error' : a.status === 'running' ? 'running' : 'success';
-      html += `<div class="drawer-agent-card" data-agent-id="${a.id}">`;
-      html += `<div class="dac-top"><span class="dac-label">${esc(a.label)}</span><span class="dac-id">${a.id.slice(-6)}</span>`;
-      html += `<span class="agent-status-pill ${statusCls}" style="margin-left:auto;font-size:9px"><span class="pill-dot"></span>${a.status}</span></div>`;
+      html += `<div class="drawer-agent-card" data-agent-id="${esc(a.id)}">`;
+      html += `<div class="dac-top"><span class="dac-label">${esc(a.label)}</span><span class="dac-id">${esc(a.id.slice(-6))}</span>`;
+      html += `<span class="agent-status-pill ${statusCls}" style="margin-left:auto;font-size:9px"><span class="pill-dot"></span>${esc(a.status)}</span></div>`;
       if (a.task) html += `<div class="dac-task" title="${esc(a.task)}">${esc(a.task.slice(0, 80))}</div>`;
       html += `<div class="dac-meta"><span>${tokens.toLocaleString()} tok</span><span>${dur}</span></div>`;
       html += `</div>`;
@@ -3821,10 +3877,26 @@ document.getElementById('event-log-list').addEventListener('click', (e) => {
 document.getElementById('event-filter-text').addEventListener('input', () => renderEventLog());
 document.getElementById('event-filter-type').addEventListener('change', () => renderEventLog());
 
+document.getElementById('filter-active').addEventListener('click', () => {
+  sessionFilter = 'active';
+  document.getElementById('filter-active').classList.add('active');
+  document.getElementById('filter-all').classList.remove('active');
+  renderSessionDropdown();
+  const sel = document.getElementById('session-select');
+  if (sel.value) loadSession(sel.value);
+});
+
+document.getElementById('filter-all').addEventListener('click', () => {
+  sessionFilter = 'all';
+  document.getElementById('filter-all').classList.add('active');
+  document.getElementById('filter-active').classList.remove('active');
+  renderSessionDropdown();
+  const sel = document.getElementById('session-select');
+  if (sel.value) loadSession(sel.value);
+});
+
 document.getElementById('session-select').addEventListener('change', (e) => {
-  const sid = e.target.value;
-  if (sid) loadSession(sid);
-  else loadSession();
+  if (e.target.value) loadSession(e.target.value);
 });
 
 document.querySelectorAll('.panel').forEach(panel => {
@@ -3892,8 +3964,11 @@ function hideTooltip() {
 // --- Init ---
 
 (async function init() {
-  await loadSession();
   await loadSessions();
+  const sel = document.getElementById('session-select');
+  if (sel.value) {
+    await loadSession(sel.value);
+  }
   connectSSE();
   render();
 

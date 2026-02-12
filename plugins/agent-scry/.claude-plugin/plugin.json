@@ -1,6 +1,6 @@
 {
   "name": "ai-scry",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Real-time observation dashboard for Claude Code agent swarms",
   "author": { "name": "MrBloodrune" },
   "repository": "https://github.com/MrBloodrune/claude-skills",
