@@ -1,9 +1,10 @@
 #!/bin/bash
-# Speaks only the TTS_SUMMARY block from Claude's response via kokoro-tts
+# Speaks only the TTS_SUMMARY block from Claude's response via kokoro-tts-server
 
 VOICE="${KOKORO_VOICE:-af_sky}"
-MODEL_DIR="${KOKORO_MODEL_DIR:-$HOME/.local/share/kokoro-tts}"
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}"
+SPEED="${KOKORO_SPEED:-1.0}"
+PORT="${KOKORO_PORT:-6789}"
+SERVER="http://127.0.0.1:$PORT"
 LOG="/tmp/kokoro-hook.log"
 
 echo "[$(date)] Kokoro TTS hook triggered" >> "$LOG"
@@ -24,6 +25,9 @@ if [ ! -f "$transcript_path" ]; then
   echo "[$(date)] Transcript file not found: $transcript_path" >> "$LOG"
   exit 0
 fi
+
+# Derive session ID from transcript path
+session_id=$(echo "$transcript_path" | md5sum | awk '{print $1}')
 
 # Extract Claude's last response from the transcript
 seen_tool_result=0
@@ -52,7 +56,7 @@ if [ -z "$claude_response" ]; then
   exit 0
 fi
 
-# Only speak if TTS_SUMMARY is present -- skip entirely otherwise
+# Only speak if TTS_SUMMARY is present
 if ! echo "$claude_response" | grep -q "<!-- TTS_SUMMARY"; then
   echo "[$(date)] No TTS_SUMMARY found, skipping TTS" >> "$LOG"
   exit 0
@@ -82,20 +86,12 @@ fi
 echo "[$(date)] Speaking TTS_SUMMARY (${#tts_summary} chars)" >> "$LOG"
 echo "[$(date)] TTS_SUMMARY content: $tts_summary" >> "$LOG"
 
-# Strip markdown artifacts
-tts_summary=$(echo "$tts_summary" | uv run --project "$PLUGIN_DIR/scripts" python "$PLUGIN_DIR/scripts/strip_markdown.py" 2>>"$LOG" || echo "$tts_summary")
-
-if pkill -9 kokoro-tts 2>/dev/null; then
-  echo "[$(date)] Killed existing kokoro-tts process" >> "$LOG"
-fi
-
-tmpfile=$(mktemp /tmp/kokoro-input.XXXXXX)
-chmod 600 "$tmpfile"
-echo "$tts_summary" > "$tmpfile"
-
-(
-  kokoro-tts "$tmpfile" --voice "$VOICE" --stream --model "$MODEL_DIR/kokoro-v1.0.onnx" --voices "$MODEL_DIR/voices-v1.0.bin" >>"$LOG" 2>&1
-  rm -f "$tmpfile"
-) &
+# Send to persistent TTS server (server handles markdown stripping)
+curl -s -X POST "$SERVER/speak" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg t "$tts_summary" --arg s "$session_id" \
+    --arg v "$VOICE" --argjson sp "$SPEED" \
+    '{text:$t, session_id:$s, voice:$v, speed:$sp}')" \
+  >> "$LOG" 2>&1
 
 exit 0

@@ -1,8 +1,19 @@
 {
   "name": "kokoro-tts",
-  "description": "Local text-to-speech voice output for Claude Code using Kokoro TTS",
-  "version": "1.0.0",
+  "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server",
+  "version": "2.0.0",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tts-session-start.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

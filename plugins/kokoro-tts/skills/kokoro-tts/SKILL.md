@@ -1,6 +1,6 @@
 ---
 name: kokoro-tts
-description: This skill governs all Claude Code responses. It MUST be active at all times. It defines the TTS_SUMMARY output format that is spoken aloud to the user via a local Kokoro TTS hook. Every response without a TTS_SUMMARY block is a silent, broken response. This skill should be loaded on every session start and applies universally.
+description: This skill governs all Claude Code responses. It MUST be active at all times. It defines the TTS_SUMMARY output format that is spoken aloud to the user via a persistent local Kokoro TTS server. Every response without a TTS_SUMMARY block is a silent, broken response. This skill should be loaded on every session start and applies universally.
 ---
 
 # Kokoro TTS Voice Output
@@ -16,7 +16,12 @@ The voice channel is the **primary engagement interface**. The user is listening
 
 ## How It Works
 
-A `Stop` hook extracts the `TTS_SUMMARY` comment block from the final response and pipes it through `kokoro-tts` for audio playback. If no `TTS_SUMMARY` block is present, **nothing is spoken** -- the user hears silence.
+A persistent HTTP server (`kokoro-tts-server`) keeps the Kokoro ONNX model loaded in memory (~500MB). Hooks send HTTP requests to the server instead of spawning a CLI process per request, eliminating the 2-3 second model loading delay.
+
+- **SessionStart** hook auto-starts the server if not running
+- **Stop** hook extracts `TTS_SUMMARY` and sends it to `POST /speak`
+- **UserPromptSubmit** hook sends `POST /interrupt` to stop current audio
+- **SessionEnd** hook sends `POST /cleanup` to release session tracking
 
 ## Output Format
 
@@ -97,19 +102,36 @@ The em dash above will produce garbled audio. Use a plain hyphen or rephrase.
 
 ## Environment
 
-- **Engine**: kokoro-tts CLI (Kokoro-82M ONNX, fully local)
+- **Engine**: kokoro-onnx (Kokoro-82M ONNX, fully local, no cloud)
+- **Server**: Persistent HTTP server on `127.0.0.1:6789` (auto-started by SessionStart hook)
 - **Voice**: Configurable via `KOKORO_VOICE` env var (default: `af_sky`)
+- **Speed**: Configurable via `KOKORO_SPEED` env var (default: `1.0`)
+- **Port**: Configurable via `KOKORO_PORT` env var (default: `6789`)
 - **Models**: `~/.local/share/kokoro-tts/` (downloaded separately)
-- **Audio**: PipeWire, routed to user's preferred output device
+- **Audio**: PipeWire/PulseAudio, routed to user's preferred output device
 - **Log**: `/tmp/kokoro-hook.log` for debugging
-- **Prerequisites**: `kokoro-tts`, `uv`, `jq` must be installed
+- **Prerequisites**: `uv`, `jq`, `curl` must be installed; model files downloaded to `~/.local/share/kokoro-tts/`
+
+## Setup
+
+1. Download model files:
+   ```
+   mkdir -p ~/.local/share/kokoro-tts
+   cd ~/.local/share/kokoro-tts
+   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+   ```
+2. Install the plugin in Claude Code
+3. The server starts automatically on first session
 
 ## Troubleshooting
 
 If the user reports no audio:
 1. Check if `TTS_SUMMARY` block was included in the response
-2. Verify kokoro-tts is installed: `which kokoro-tts`
+2. Check server health: `curl http://127.0.0.1:6789/health`
 3. Check the log: `tail -20 /tmp/kokoro-hook.log`
-4. Test audio output: `echo "test" > /tmp/t.txt && kokoro-tts /tmp/t.txt --stream --voice af_sky --model ~/.local/share/kokoro-tts/kokoro-v1.0.onnx --voices ~/.local/share/kokoro-tts/voices-v1.0.bin`
+4. Test directly: `curl -X POST http://127.0.0.1:6789/speak -H "Content-Type: application/json" -d '{"text":"test","session_id":"t1"}'`
 
 If the user reports garbled audio at the start of playback, check the log for non-ASCII characters in the summary content. Replace em dashes, smart quotes, and unicode with plain ASCII equivalents.
+
+For advanced users, the server can be managed as a systemd user service for guaranteed uptime across sessions.

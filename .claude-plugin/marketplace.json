@@ -137,7 +137,7 @@
     },
     {
       "name": "kokoro-tts",
-      "description": "Local text-to-speech voice output for Claude Code using Kokoro TTS. Speaks a concise TTS_SUMMARY after every response via hooks.",
+      "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server. Model stays in memory for instant playback with per-session interrupt support.",
       "source": "./plugins/kokoro-tts",
       "strict": false
     }

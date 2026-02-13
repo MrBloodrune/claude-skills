@@ -1,0 +1,13 @@
+[project]
+name = "kokoro-tts-server"
+version = "2.0.0"
+description = "Persistent Kokoro TTS server for Claude Code"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "kokoro-onnx>=0.4.0",
+    "sounddevice>=0.4.6",
+    "numpy>=1.24.0",
+    "mistune>=3.0.0",
+    "librosa>=0.10.0",
+]
