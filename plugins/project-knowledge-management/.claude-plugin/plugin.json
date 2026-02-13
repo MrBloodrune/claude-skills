@@ -1,0 +1,10 @@
+{
+  "name": "project-knowledge-management",
+  "version": "0.1.0",
+  "description": "Standardized .agents/ workspace framework with Obsidian vault integration, doc maintenance, and project scaffolding",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["pkm", "obsidian", "agents", "workspace", "docs", "knowledge-management"],
+  "hooks": "./hooks/hooks.json"
+}
