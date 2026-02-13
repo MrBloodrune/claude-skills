@@ -1,0 +1,16 @@
+{
+  "description": "PKM hooks — auto-link .agents/ workspaces to Obsidian vault on session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-link.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
