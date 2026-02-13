@@ -1,0 +1,8 @@
+[project]
+name = "kokoro-tts-utils"
+version = "1.0.0"
+description = "Utility scripts for kokoro-tts Claude Code plugin"
+requires-python = ">=3.10"
+dependencies = [
+    "mistune>=3.0",
+]

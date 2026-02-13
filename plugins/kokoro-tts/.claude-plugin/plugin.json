@@ -1,0 +1,11 @@
+{
+  "name": "kokoro-tts",
+  "version": "1.0.0",
+  "description": "Local text-to-speech voice output for Claude Code using Kokoro TTS. Speaks a concise TTS_SUMMARY after every response.",
+  "author": {
+    "name": "MrBloodrune"
+  },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["tts", "voice", "kokoro", "audio", "accessibility"]
+}
