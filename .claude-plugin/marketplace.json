@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "plugins": [
     {
@@ -127,6 +127,12 @@
       "name": "meshtastic-ops",
       "description": "Meshtastic device provisioning, configuration, mesh network operations, and troubleshooting for LILYGO T-Beam Supreme (ESP32-S3, SX1262 LoRa) boards",
       "source": "./plugins/meshtastic-ops",
+      "strict": false
+    },
+    {
+      "name": "project-knowledge-management",
+      "description": "Standardized .agents/ workspace framework with Obsidian vault integration, doc maintenance, and project scaffolding",
+      "source": "./plugins/project-knowledge-management",
       "strict": false
     }
   ]
