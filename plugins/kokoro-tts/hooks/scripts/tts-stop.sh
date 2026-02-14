@@ -71,19 +71,27 @@ if ! echo "$claude_response" | grep -q "<!-- TTS_SUMMARY"; then
   exit 0
 fi
 
+# Extract last TTS_SUMMARY block (responses may mention the marker in explanation text)
 tts_summary=$(echo "$claude_response" | awk '
   {
-    start = index($0, "<!-- TTS_SUMMARY")
-    if (start > 0) {
-      rest = substr($0, start + 16)
+    s = $0
+    last_content = ""
+    while (1) {
+      start = index(s, "<!-- TTS_SUMMARY")
+      if (start == 0) break
+      rest = substr(s, start + 16)
       end = index(rest, "TTS_SUMMARY -->")
       if (end > 0) {
         content = substr(rest, 1, end - 1)
         gsub(/^[[:space:]]+/, "", content)
         gsub(/[[:space:]]+$/, "", content)
-        print content
+        last_content = content
+        s = substr(rest, end + 15)
+      } else {
+        break
       }
     }
+    if (last_content != "") print last_content
   }
 ')
 
