@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.2.0"
+    "version": "2.2.1"
   },
   "plugins": [
     {
@@ -139,6 +139,12 @@
       "name": "kokoro-tts",
       "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server. Model stays in memory for instant playback with per-session interrupt support.",
       "source": "./plugins/kokoro-tts",
+      "strict": false
+    },
+    {
+      "name": "tmux-sessions",
+      "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with file-based event notifications",
+      "source": "./plugins/tmux-sessions",
       "strict": false
     }
   ]
