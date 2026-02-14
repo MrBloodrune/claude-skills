@@ -1,0 +1,10 @@
+{
+  "name": "tmux-sessions",
+  "version": "0.1.1",
+  "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with file-based event notifications",
+  "author": { "name": "MrBloodrune" },
+  "repository": "https://github.com/MrBloodrune/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["tmux", "sessions", "dispatch", "parallel", "monitoring"],
+  "hooks": "./hooks/hooks.json"
+}
