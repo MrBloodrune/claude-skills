@@ -1,58 +1,12 @@
 {
   "name": "kokoro-tts",
   "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "author": {
     "name": "MrBloodrune"
   },
   "repository": "https://github.com/MrBloodrune/claude-skills",
   "license": "Apache-2.0",
   "keywords": ["tts", "voice", "kokoro", "audio", "accessibility", "speech"],
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tts-session-start.sh",
-            "timeout": 20
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tts-interrupt.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tts-stop.sh",
-            "timeout": 10,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tts-session-end.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": "./hooks/hooks.json"
 }
