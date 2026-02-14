@@ -45,6 +45,10 @@ scan_events() {
                     echo "[$time_str] $tool"
                 fi
                 ;;
+            permission)
+                tool=$(jq -r '.tool // "unknown"' "$f" 2>/dev/null)
+                echo "[$time_str] PERMISSION NEEDED: Claude needs your permission to use $tool"
+                ;;
             stop)
                 reason=$(jq -r '.reason // "unknown"' "$f" 2>/dev/null)
                 echo "[$time_str] STOPPED: $reason"

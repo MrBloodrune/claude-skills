@@ -10,6 +10,9 @@
     "PreToolUse": [
       { "matcher": "Write|Edit|Bash|NotebookEdit", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh", "timeout": 5, "async": true }] }
     ],
+    "Notification": [
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/permission-notify.sh", "timeout": 5, "async": true }] }
+    ],
     "SessionEnd": [
       { "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh", "timeout": 5 }] }
     ]
