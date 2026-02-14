@@ -9,9 +9,25 @@ description: This skill should be used when the user asks to "check tmux", "sess
 
 Check on the status of Claude sessions dispatched to tmux. Provides methods for reading the event queue, listing active sessions, capturing pane output, and determining whether a session has completed.
 
+## How It Works
+
+If the session was dispatched with the `tmux-dispatch` skill, a **stop notification is automatic** — the dispatched session's stop hook injects a message into this pane when it finishes. You don't need to poll.
+
+This skill is for **mid-task progress checks** or when you didn't get an automatic notification.
+
 ## How to Check
 
-### Quick status: Read event queue
+### Activity log (event watcher)
+
+Run the event watcher for a quick chronological summary of what the session has done:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <session_name> 1
+```
+
+This prints one line per tool use and exits on stop. Use it for a quick catch-up, not long-running polling.
+
+### Event queue (raw)
 
 ```bash
 # List recent events (newest first)

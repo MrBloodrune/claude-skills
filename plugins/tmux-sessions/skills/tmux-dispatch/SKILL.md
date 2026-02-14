@@ -25,6 +25,13 @@ tmux new-session -d -s <name> -c <project_dir>
 - `<project_dir>`: Absolute path to the project root.
 - Verify creation with `tmux list-sessions`.
 
+Register the parent session so the dispatched session can notify you when it stops:
+
+```bash
+# Record this session as the parent (for stop notification)
+tmux display-message -p '#S' > ~/.claude/tmux-sessions/<name>.parent
+```
+
 ### Step 2: Launch interactive Claude
 
 Start Claude interactively inside the new session:
@@ -74,21 +81,16 @@ tmux capture-pane -t <name> -p -S -20
 
 Expect to see Claude processing (reading files, creating tasks, etc.). If a shell prompt appears instead, Claude exited -- check for errors in the captured output.
 
-### Step 6: Monitor via events
+### Step 6: Done — notification is automatic
 
-If the tmux-sessions plugin hooks are active, events appear in `~/.claude/tmux-events/`:
+The parent session file you wrote in Step 1 enables automatic notification. When the dispatched session stops, the stop hook will inject a message into this tmux pane telling you it's done. No polling needed.
 
-```bash
-# Latest event
-ls -t ~/.claude/tmux-events/ 2>/dev/null | head -5
-
-# Read an event
-cat ~/.claude/tmux-events/$(ls -t ~/.claude/tmux-events/ 2>/dev/null | head -1) 2>/dev/null | jq .
-```
-
-Or capture the pane directly:
+To check progress manually before it finishes:
 
 ```bash
+# Activity log (one-liner per tool use)
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1 &
+# Or capture the pane directly
 tmux capture-pane -t <name> -p -S -30
 ```
 

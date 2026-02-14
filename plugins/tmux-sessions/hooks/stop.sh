@@ -32,3 +32,19 @@ jq -n \
   --argjson ts "$ts" \
   '{event: $event, session_hash: $hash, session_name: $name, reason: $reason, timestamp: $ts}' \
   > "$EVENTS_DIR/${ts}-${session_hash}-stop.json"
+
+# Notify parent session via tmux if one is registered
+parent_file="$SESSIONS_DIR/${session_name}.parent"
+if [ -f "$parent_file" ]; then
+    parent_session=$(cat "$parent_file")
+    if tmux has-session -t "$parent_session" 2>/dev/null; then
+        notify_file="/tmp/tmux-notify-${session_name}.txt"
+        echo "The tmux session \"${session_name}\" has stopped (reason: ${reason}). Check its status and report back." > "$notify_file"
+        tmux load-buffer "$notify_file"
+        tmux paste-buffer -t "$parent_session"
+        sleep 0.5
+        tmux send-keys -t "$parent_session" Enter
+        rm -f "$notify_file"
+    fi
+    rm -f "$parent_file"
+fi
