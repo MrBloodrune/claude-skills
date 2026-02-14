@@ -6,6 +6,7 @@ SPEED="${KOKORO_SPEED:-1.0}"
 PORT="${KOKORO_PORT:-6789}"
 SERVER="http://127.0.0.1:$PORT"
 LOG="/tmp/kokoro-hook.log"
+ASSETS_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/assets"
 
 echo "[$(date)] Kokoro TTS hook triggered" >> "$LOG"
 
@@ -28,6 +29,13 @@ fi
 
 # Derive session ID from transcript path
 session_id=$(echo "$transcript_path" | md5sum | awk '{print $1}')
+
+# Health check - verify server is alive before proceeding
+if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
+  echo "[$(date)] ERROR: Kokoro server not responding" >> "$LOG"
+  paplay "$ASSETS_DIR/error.wav" 2>/dev/null &
+  exit 0
+fi
 
 # Extract Claude's last response from the transcript
 seen_tool_result=0
@@ -56,9 +64,10 @@ if [ -z "$claude_response" ]; then
   exit 0
 fi
 
-# Only speak if TTS_SUMMARY is present
+# Check for TTS_SUMMARY - play coin sound if missing
 if ! echo "$claude_response" | grep -q "<!-- TTS_SUMMARY"; then
-  echo "[$(date)] No TTS_SUMMARY found, skipping TTS" >> "$LOG"
+  echo "[$(date)] No TTS_SUMMARY found, playing coin" >> "$LOG"
+  paplay "$ASSETS_DIR/coin.wav" 2>/dev/null &
   exit 0
 fi
 
@@ -79,19 +88,23 @@ tts_summary=$(echo "$claude_response" | awk '
 ')
 
 if [ -z "$tts_summary" ]; then
-  echo "[$(date)] TTS_SUMMARY marker found but empty, skipping" >> "$LOG"
+  echo "[$(date)] TTS_SUMMARY marker found but empty, playing coin" >> "$LOG"
+  paplay "$ASSETS_DIR/coin.wav" 2>/dev/null &
   exit 0
 fi
 
-echo "[$(date)] Speaking TTS_SUMMARY (${#tts_summary} chars)" >> "$LOG"
-echo "[$(date)] TTS_SUMMARY content: $tts_summary" >> "$LOG"
+# Send to persistent TTS server
+preview="${tts_summary:0:40}"
+echo "[$(date)] Speaking: \"${preview}...\" (${#tts_summary} chars)" >> "$LOG"
 
-# Send to persistent TTS server (server handles markdown stripping)
-curl -s -X POST "$SERVER/speak" \
+response=$(curl -s -X POST "$SERVER/speak" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg t "$tts_summary" --arg s "$session_id" \
     --arg v "$VOICE" --argjson sp "$SPEED" \
     '{text:$t, session_id:$s, voice:$v, speed:$sp}')" \
-  >> "$LOG" 2>&1
+  2>&1)
+
+status=$(echo "$response" | jq -r '.status' 2>/dev/null)
+echo "[$(date)] Server response: $status" >> "$LOG"
 
 exit 0

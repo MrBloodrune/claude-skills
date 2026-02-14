@@ -1,7 +1,7 @@
 {
   "name": "kokoro-tts",
   "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "hooks": {
     "SessionStart": [
       {
