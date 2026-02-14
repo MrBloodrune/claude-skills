@@ -2,7 +2,7 @@
 set -euo pipefail
 # tmux-sessions: Clean up session registration on exit.
 
-[ -z "$TMUX" ] && exit 0
+[ -z "${TMUX:-}" ] && exit 0
 
 input=$(cat)
 

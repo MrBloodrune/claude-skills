@@ -3,7 +3,7 @@ set -euo pipefail
 # tmux-sessions: Notify that this Claude session is stopping.
 # Writes a stop event to ~/.claude/tmux-events/.
 
-[ -z "$TMUX" ] && exit 0
+[ -z "${TMUX:-}" ] && exit 0
 
 input=$(cat)
 

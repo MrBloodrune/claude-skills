@@ -4,7 +4,7 @@ set -euo pipefail
 # Only logs tools that commonly need approval (Write, Edit, Bash).
 # Async hook -- does not block tool execution.
 
-[ -z "$TMUX" ] && exit 0
+[ -z "${TMUX:-}" ] && exit 0
 
 input=$(cat)
 
