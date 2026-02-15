@@ -29,6 +29,20 @@ There is **no automatic callback** into the parent session. You must actively ca
 - Make "small fixes" while the child is running.
 - Start working on related files in the same project concurrently.
 
+## Claude Code Prompt Suggestions
+
+When the child session completes a response, Claude Code sometimes displays **suggestion text** in the input area (e.g., "proceed with remaining tasks"). This is **autocomplete** -- the child did not type it. There is no "self-prompting" mechanism. The suggestion sits inert until accepted.
+
+To accept and submit a prompt suggestion from the parent:
+
+```bash
+tmux send-keys -t <name> Tab Enter
+```
+
+**Tab** accepts the autocomplete text. **Enter** submits it. Sending bare `Enter` without `Tab` submits an empty line and does nothing useful.
+
+This is the most common cause of apparent stalls -- the child finished its work, a continuation suggestion appeared, and nobody accepted it.
+
 ## Launch Procedure
 
 Follow these steps exactly. Each step matters -- shortcuts cause failures.
@@ -54,19 +68,12 @@ kitty sh -c "tmux attach -t <name>" &
 Start Claude interactively inside the new session. The `CLAUDECODE` env var must be unset first -- it's inherited from the parent and blocks nested launches:
 
 ```bash
-tmux send-keys -t <name> "unset CLAUDECODE && claude --dangerously-skip-permissions" Enter
+tmux send-keys -t <name> "unset CLAUDECODE && claude --dangerously-skip-permissions" Enter && sleep 5 && tmux capture-pane -t <name> -p -S -10
 ```
 
 **CRITICAL: NEVER use `claude -p`** -- it exits after one exchange. Follow-up questions go to zsh, not Claude.
 
-Wait 12 seconds, then verify Claude has fully initialized by capturing the pane:
-
-```bash
-sleep 12
-tmux capture-pane -t <name> -p -S -10
-```
-
-Look for the Claude Code banner (version, model, project path). If you see only a shell prompt, Claude failed to start -- check the captured output for errors and retry.
+The 5-second sleep gives Claude time to initialize. Look for the Claude Code banner (version, model, project path) in the captured output. If you see only a shell prompt, Claude failed to start -- check for errors and retry.
 
 ### Step 3: Send the prompt safely
 
@@ -85,23 +92,12 @@ tmux paste-buffer -t <name>
 
 **CRITICAL: NEVER use `tmux send-keys` for multi-line text** -- it mangles quotes, parens, and special chars. The `load-buffer` + `paste-buffer` pattern is the only reliable method.
 
-### Step 4: Submit the prompt
+### Step 4: Submit the prompt and validate
 
-Press Enter to submit the pasted prompt:
-
-```bash
-sleep 1
-tmux send-keys -t <name> Enter
-```
-
-## Validation Cycle (Phase 1)
-
-After submitting the prompt, confirm it landed before entering the monitoring loop.
-
-Fire a delayed pane capture as a background task:
+Submit the pasted prompt and capture the pane to confirm it landed, in one command:
 
 ```bash
-sleep 10 && tmux capture-pane -t <name> -p -S -50
+tmux send-keys -t <name> Enter && sleep 7 && tmux capture-pane -t <name> -p -S -50
 ```
 
 Run this with `run_in_background: true` on the Bash tool. When the background task completes and you get notified, read the output.
@@ -148,6 +144,7 @@ The parent continuously monitors using discrete one-shot background checks. Each
 | Subagent spawned (Task tool visible) | 90-120s | Subagents take time |
 | Planning / reading files (Read/Glob output) | 45-60s | Moderate pace work |
 | Conversation with user (AskUserQuestion visible) | 30s | Child might be blocked waiting for input |
+| Prompt suggestion visible (text at input line after response ended) | 15-20s | Accept quickly -- child is ready to continue but waiting on suggestion acceptance |
 
 ### Adjustment guidance
 
@@ -194,6 +191,7 @@ This tells you: **crashed** (no process) vs **hung** (process alive but no outpu
 
 **3. Attempt resolution** based on what you see:
 
+- **Prompt suggestion visible** (child's response ended and text appears on the input line -- this is Claude Code's autocomplete, not user input) → accept, submit, and capture in one command: `tmux send-keys -t <name> Tab Enter && sleep 7 && tmux capture-pane -t <name> -p -S -50`. Tab accepts the suggestion, Enter submits it, then capture confirms it took. This is the most common stall cause.
 - **Child waiting at a permission prompt or question** → send appropriate input via `tmux send-keys -t <name> "response" Enter`.
 - **Child appears hung mid-output** (process alive, no new content) → send a gentle nudge: `tmux send-keys -t <name> Enter`.
 - **Child process exited or session is dead** → skip to Completion & Review (Phase 3) and report what happened.
@@ -271,6 +269,7 @@ Report: what was completed, what was missed (if anything), and any concerns.
 | Ignoring identical captures | Track consecutive identical output -- 2 is a warning, 3 is a confirmed stall |
 | Not verifying completion | Always check process status with `pgrep`, not just pane content |
 | Skipping validation after completion | Always launch a code-reviewer subagent to verify the work matched the plan |
+| Sending bare `Enter` to accept prompt suggestions | Suggestions need `Tab` then `Enter` -- Tab accepts the autocomplete, Enter submits. Bare Enter sends an empty line |
 
 ## Sending Follow-Up Messages
 
@@ -280,9 +279,6 @@ To reply when the spawned session asks a question or needs input:
 # Write reply to temp file
 echo "Your reply text here" > /tmp/tmux-reply.txt
 
-# Paste into the session
-tmux load-buffer /tmp/tmux-reply.txt
-tmux paste-buffer -t <name>
-sleep 1
-tmux send-keys -t <name> Enter
+# Paste, submit, and capture in one command
+tmux load-buffer /tmp/tmux-reply.txt && tmux paste-buffer -t <name> && sleep 1 && tmux send-keys -t <name> Enter && sleep 5 && tmux capture-pane -t <name> -p -S -50
 ```
