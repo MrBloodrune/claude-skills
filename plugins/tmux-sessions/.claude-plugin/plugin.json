@@ -1,7 +1,7 @@
 {
   "name": "tmux-sessions",
-  "version": "0.4.1",
-  "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with file-based event notifications",
+  "version": "0.5.0",
+  "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with adaptive pane-based monitoring",
   "author": { "name": "MrBloodrune" },
   "repository": "https://github.com/MrBloodrune/claude-skills",
   "license": "Apache-2.0",
