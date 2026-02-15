@@ -7,15 +7,30 @@ description: This skill should be used when the user asks to "run this in tmux",
 
 ## Purpose
 
-Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session acts as the senior engineer -- it dispatches work, monitors progress via file-based events and pane capture, and checks results when done.
+Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session dispatches work, then **waits** -- monitoring progress passively until the child completes.
+
+## Ownership Model
+
+**The child session owns all file operations.** Once you dispatch a task, the parent session must NOT read, write, or edit any files the child might be working on. Two sessions touching the same files causes conflicts -- edits overwrite each other, reads see stale state, and both sessions make bad decisions based on wrong data.
+
+**Parent session role: dispatch and monitor only.**
+- Launch the child, send it a prompt, then hands off.
+- Poll periodically to confirm the child is still working (not stalled or crashed).
+- Wait for the sentinel file indicating completion.
+- Only after the child is done should you inspect results, review changes, or take further action on those files.
+
+**Do NOT:**
+- Read project files "to check how it's going" -- use pane capture instead.
+- Make "small fixes" while the child is running.
+- Start working on related files in the same project concurrently.
 
 ## Architecture
 
-- **Parent session**: Your current Claude session (not in tmux). Dispatches and monitors.
-- **Child session**: Claude running inside tmux in a separate Kitty window. Does the work autonomously.
+- **Parent session**: Your current Claude session (not in tmux). Dispatches, monitors, and reviews after completion.
+- **Child session**: Claude running inside tmux in a separate Kitty window. Owns all file operations until it finishes.
 - **Communication**: One-way via filesystem. Child writes events to `~/.claude/tmux-events/` and a sentinel file to `~/.claude/tmux-sessions/<name>.done` on completion. Parent polls to check progress.
 
-There is **no automatic callback** into the parent session. You must actively check on the child.
+There is **no automatic callback** into the parent session. You must actively poll for completion.
 
 ## Launch Procedure
 
@@ -95,7 +110,7 @@ Expect to see Claude processing (reading files, creating tasks, etc.). If a shel
 
 ### Step 6: Start background polling
 
-After confirming the child is running, start a background poll that periodically captures the child's pane output. This gives you a passive log to check without manually running commands each time:
+After confirming the child is running, start a background poll that watches for completion and verifies the child hasn't stalled. This is your only monitoring mechanism -- do NOT read project files to check progress.
 
 ```bash
 # Poll every 60 seconds, writing the latest pane state to a log file
@@ -113,7 +128,13 @@ done
 
 Run this as a background Bash command (`run_in_background: true`). Choose the poll interval based on expected task duration -- 30-60 seconds for most tasks, longer for multi-hour work.
 
-### Step 7: Check completion
+The poll serves two purposes:
+1. **Detect completion** -- the sentinel file check.
+2. **Detect stalls** -- if the pane output is identical across multiple polls, the child may be stuck. Investigate via pane capture, not by opening project files.
+
+### Step 7: Wait for completion
+
+**After dispatching, your job is to wait.** Do not start working on the same project. Tell the user the child is running and offer to check on it periodically or when asked.
 
 **Check if the session is done:**
 
@@ -131,7 +152,7 @@ If the file exists, the child has stopped. Its contents include the stop reason 
 tail -80 /tmp/tmux-poll-<name>.log
 ```
 
-**Manual spot check:**
+**Manual spot check (pane capture only -- do NOT read project files):**
 
 ```bash
 # Capture recent pane output directly
@@ -141,7 +162,15 @@ tmux capture-pane -t <name> -p -S -30
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
 ```
 
-**IMPORTANT:** As the senior session, you should check on the child periodically or when the user asks. Don't assume it succeeded -- verify by reading the poll log, pane output, or sentinel file.
+### Step 8: Review after completion
+
+Only after the sentinel file confirms the child is done should you:
+- Read project files to inspect what changed
+- Run tests or linters to verify the work
+- Report results to the user
+- Take follow-up actions on those files
+
+**IMPORTANT:** Do not assume the child succeeded -- verify by reviewing the actual changes and running relevant checks.
 
 ## Common Mistakes
 
@@ -152,6 +181,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
 | Not waiting for Claude to init | `sleep 12` then capture pane to verify banner |
 | Not unsetting `CLAUDECODE` | Prefix with `unset CLAUDECODE &&` -- inherited env blocks nested launches |
 | Using `kitty --single-instance` | Drops command args when existing Kitty is running. Use `kitty sh -c "..."` instead |
+| Reading/editing project files while child runs | Use pane capture to monitor. Only touch files after the child is done |
 | Assuming automatic notification | Poll the sentinel file or capture the pane |
 | Sending a reply to a `-p` session | Can't -- it already exited. Relaunch interactively |
 
