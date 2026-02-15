@@ -5,32 +5,29 @@ description: This skill should be used when the user asks to "run this in tmux",
 
 # tmux-dispatch
 
-## Purpose
+## Purpose & Ownership Model
 
-Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session dispatches work, then **waits** -- monitoring progress passively until the child completes.
-
-## Ownership Model
+Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session dispatches work, then monitors progress through direct pane capture until the child completes.
 
 **The child session owns all file operations.** Once you dispatch a task, the parent session must NOT read, write, or edit any files the child might be working on. Two sessions touching the same files causes conflicts -- edits overwrite each other, reads see stale state, and both sessions make bad decisions based on wrong data.
 
 **Parent session role: dispatch and monitor only.**
 - Launch the child, send it a prompt, then hands off.
-- Poll periodically to confirm the child is still working (not stalled or crashed).
-- Wait for the sentinel file indicating completion.
+- Monitor progress by capturing pane output at adaptive intervals.
+- Detect completion, stalls, and failures through pane content analysis.
 - Only after the child is done should you inspect results, review changes, or take further action on those files.
+
+**Architecture:**
+- **Parent session**: Your current Claude session (not in tmux). Dispatches, monitors via pane capture, and reviews after completion.
+- **Child session**: Claude running inside tmux in a separate Kitty window. Owns all file operations until it finishes.
+- **Communication**: Direct pane capture (`tmux capture-pane`). The parent reads the child's terminal output on each check cycle. No filesystem intermediaries, no sentinel files, no event logs.
+
+There is **no automatic callback** into the parent session. You must actively capture pane output to track progress.
 
 **Do NOT:**
 - Read project files "to check how it's going" -- use pane capture instead.
 - Make "small fixes" while the child is running.
 - Start working on related files in the same project concurrently.
-
-## Architecture
-
-- **Parent session**: Your current Claude session (not in tmux). Dispatches, monitors, and reviews after completion.
-- **Child session**: Claude running inside tmux in a separate Kitty window. Owns all file operations until it finishes.
-- **Communication**: One-way via filesystem. Child writes events to `~/.claude/tmux-events/` and a sentinel file to `~/.claude/tmux-sessions/<name>.done` on completion. Parent polls to check progress.
-
-There is **no automatic callback** into the parent session. You must actively poll for completion.
 
 ## Launch Procedure
 
@@ -97,74 +94,139 @@ sleep 1
 tmux send-keys -t <name> Enter
 ```
 
-### Step 5: Verify it's running
+## Validation Cycle (Phase 1)
 
-Capture the pane output after a brief delay to confirm Claude is processing:
+After submitting the prompt, confirm it landed before entering the monitoring loop.
 
-```bash
-sleep 5
-tmux capture-pane -t <name> -p -S -20
-```
-
-Expect to see Claude processing (reading files, creating tasks, etc.). If a shell prompt appears instead, Claude exited -- check for errors in the captured output.
-
-### Step 6: Start background polling
-
-After confirming the child is running, start a background poll that watches for completion and verifies the child hasn't stalled. This is your only monitoring mechanism -- do NOT read project files to check progress.
+Fire a delayed pane capture as a background task:
 
 ```bash
-# Poll every 60 seconds, writing the latest pane state to a log file
-while true; do
-  if [ -f ~/.claude/tmux-sessions/<name>.done ]; then
-    echo "=== SESSION COMPLETE $(date) ===" >> /tmp/tmux-poll-<name>.log
-    cat ~/.claude/tmux-sessions/<name>.done >> /tmp/tmux-poll-<name>.log
-    break
-  fi
-  echo "=== POLL $(date) ===" >> /tmp/tmux-poll-<name>.log
-  tmux capture-pane -t <name> -p -S -30 >> /tmp/tmux-poll-<name>.log 2>/dev/null
-  sleep 60
-done
+sleep 10 && tmux capture-pane -t <name> -p -S -50
 ```
 
-Run this as a background Bash command (`run_in_background: true`). Choose the poll interval based on expected task duration -- 30-60 seconds for most tasks, longer for multi-hour work.
+Run this with `run_in_background: true` on the Bash tool. When the background task completes and you get notified, read the output.
 
-The poll serves two purposes:
-1. **Detect completion** -- the sentinel file check.
-2. **Detect stalls** -- if the pane output is identical across multiple polls, the child may be stuck. Investigate via pane capture, not by opening project files.
+**What to look for:** Confirm Claude is active -- tool output (Read, Write, Glob, Grep), thinking indicators, task creation, or any sign of work in progress. The key distinction is that the pane should NOT show just a bare shell prompt or the Claude input prompt with no activity.
 
-### Step 7: Wait for completion
+**If the prompt didn't take** (pane still shows Claude's input prompt with no activity, or an error, or a bare shell):
+1. Retry the `load-buffer` + `paste-buffer` sequence from Step 3
+2. Submit with `send-keys Enter` again
+3. Fire another `sleep 10 && tmux capture-pane` background check
 
-**After dispatching, your job is to wait.** Do not start working on the same project. Tell the user the child is running and offer to check on it periodically or when asked.
+**Maximum 2 retry attempts.** If the prompt still hasn't taken after 2 retries, alert the user -- something is wrong with the session.
 
-**Check if the session is done:**
+**On success:** The child is confirmed active. Transition to Active Monitoring.
+
+## Active Monitoring (Phase 2)
+
+The parent continuously monitors using discrete one-shot background checks. Each check is a fresh decision point -- you reason about what the child is doing and decide when to check again.
+
+### The monitoring cycle
+
+1. **Reason** about what the child is doing based on the last pane capture.
+2. **Consult the reference table** below to pick an appropriate sleep interval.
+3. **Fire** a background check:
+   ```bash
+   sleep N && tmux capture-pane -t <name> -p -S -50
+   ```
+   Run with `run_in_background: true`.
+4. **When notified**, read the result.
+5. **Compare** to the previous capture (which you hold in conversation context).
+6. **Assess** the situation and take the appropriate next step:
+   - Progress is happening → fire another monitoring check (back to step 1).
+   - Completion signals visible → transition to Completion & Review (Phase 3).
+   - Output is identical to last capture → enter stall detection (see next section).
+
+### Reference Table
+
+| Signal in Pane | Suggested Interval | Rationale |
+|---|---|---|
+| Just dispatched, confirming prompt took | 10-15s | Quick validation cycle |
+| Active file edits (Write/Edit tool output visible) | 30-45s | Rapid changes, check frequently |
+| Running tests / build output scrolling | 60-120s | Let it finish, but catch failures |
+| Long compile or install (npm, cargo, etc.) | 120-180s | Known slow operations |
+| Subagent spawned (Task tool visible) | 90-120s | Subagents take time |
+| Planning / reading files (Read/Glob output) | 45-60s | Moderate pace work |
+| Conversation with user (AskUserQuestion visible) | 30s | Child might be blocked waiting for input |
+
+### Adjustment guidance
+
+- If there is significant new output since last check, the interval is about right -- maintain it.
+- If there is a lot of new output and the pane has scrolled far past what you last saw, the interval was too long -- shorten the next one.
+- If the output is nearly identical but the child is clearly still working (partial line, spinner character, or a tool call in progress), lengthen the interval slightly -- you're checking too often.
+- After a stall is confirmed, drop to 15-20s intervals during diagnosis to get a clearer picture.
+
+You hold the previous pane capture in conversation context and compare naturally. No hashing, no state files, no external tracking needed.
+
+### Preserving State
+
+After each pane capture, note a short summary of what the child was doing (e.g., "editing auth.rs", "running tests", "waiting at prompt") and the last 20-30 lines of output. When the next background check completes, compare against this summary. If intervening conversation has pushed the previous capture out of immediate context, the summary ensures you can still detect changes vs stalls.
+
+## Stall Detection & Autonomous Triage
+
+When pane output is identical across consecutive checks, the child may be stalled.
+
+### Detection thresholds
+
+- **1 identical capture**: NOT a stall. The child might be thinking, waiting for a slow operation, or mid-computation. Fire another check at the current interval.
+- **2 consecutive identical captures** at the current interval: Potential stall. Shorten the interval and gather more data.
+- **3 consecutive identical captures**: Confirmed stall. Begin triage.
+
+**What counts as identical:** Two captures are identical if the visible text content is the same. Ignore cursor position, ANSI formatting codes, and timestamp differences in tool output footers. If you see any new text, a different tool call, a spinner character change, or a progress indicator update -- the captures are NOT identical.
+
+### Triage sequence
+
+Follow these steps in order when a stall is confirmed:
+
+**1. Shorten interval.** Drop to 15s checks for a clearer picture of whether anything is changing.
+
+**2. Diagnose.** Run these checks to understand the situation:
 
 ```bash
-# Sentinel file is written by the child's stop hook
-cat ~/.claude/tmux-sessions/<name>.done 2>/dev/null
+# Does the session still exist?
+tmux has-session -t <name>
+
+# Is Claude still running inside it?
+pgrep -P $(tmux list-panes -t <name> -F '#{pane_pid}') -f "claude"
 ```
 
-If the file exists, the child has stopped. Its contents include the stop reason and timestamp.
+This tells you: **crashed** (no process) vs **hung** (process alive but no output).
 
-**Check the poll log for progress:**
+**3. Attempt resolution** based on what you see:
+
+- **Child waiting at a permission prompt or question** → send appropriate input via `tmux send-keys -t <name> "response" Enter`.
+- **Child appears hung mid-output** (process alive, no new content) → send a gentle nudge: `tmux send-keys -t <name> Enter`.
+- **Child process exited or session is dead** → skip to Completion & Review (Phase 3) and report what happened.
+
+**4. Re-check.** Fire a 10-15s background check after any intervention to see if it worked.
+
+**5. Escalate.** If 2-3 intervention attempts don't change the pane output, alert the user. Include the frozen pane output so they can see what state the child is in, and ask what to do.
+
+Maximum 2-3 autonomous intervention attempts before escalating. Don't sit there poking at a dead session.
+
+## Completion & Review (Phase 3)
+
+### Detecting completion
+
+Look for these signals in the pane capture:
+
+- **Shell prompt returned** -- a `$` or `%` at the bottom of the output with no Claude activity above it.
+- **Claude's exit message visible** -- the standard goodbye/exit text.
+- **Explicit completion text** -- "task complete", a final commit message, or similar wrap-up output.
+
+### Verification
+
+Confirm with a process check:
 
 ```bash
-# Read recent poll captures
-tail -80 /tmp/tmux-poll-<name>.log
+pgrep -P $(tmux list-panes -t <name> -F '#{pane_pid}') -f "claude"
 ```
 
-**Manual spot check (pane capture only -- do NOT read project files):**
+If no Claude process is found and a shell prompt is visible, the child is done.
 
-```bash
-# Capture recent pane output directly
-tmux capture-pane -t <name> -p -S -30
+### Post-completion validation
 
-# Or scan the event log for a quick summary
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
-```
-
-### Step 8: Validate completion against the plan
-
-Once the sentinel file confirms the child is done, launch a **code-reviewer subagent** to verify the work. The subagent compares what was actually done against the original prompt/plan that was dispatched.
+Launch a **code-reviewer subagent** to verify the work. The subagent compares what was actually done against the original prompt/plan that was dispatched.
 
 Use the `Task` tool with `subagent_type: "superpowers:code-reviewer"` and provide it:
 
@@ -205,9 +267,10 @@ Report: what was completed, what was missed (if anything), and any concerns.
 | Not unsetting `CLAUDECODE` | Prefix with `unset CLAUDECODE &&` -- inherited env blocks nested launches |
 | Using `kitty --single-instance` | Drops command args when existing Kitty is running. Use `kitty sh -c "..."` instead |
 | Reading/editing project files while child runs | Use pane capture to monitor. Only touch files after the child is done |
-| Assuming automatic notification | Poll the sentinel file or capture the pane |
+| Checking too frequently (under 10s) | Trust the reference table and let the child work. Over-polling adds no value |
+| Ignoring identical captures | Track consecutive identical output -- 2 is a warning, 3 is a confirmed stall |
+| Not verifying completion | Always check process status with `pgrep`, not just pane content |
 | Skipping validation after completion | Always launch a code-reviewer subagent to verify the work matched the plan |
-| Sending a reply to a `-p` session | Can't -- it already exited. Relaunch interactively |
 
 ## Sending Follow-Up Messages
 
