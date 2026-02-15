@@ -68,11 +68,14 @@ import sys, re
 text = sys.stdin.read()
 
 # Try TTS_RESPONSE (new format) -- find last occurrence
-matches = list(re.finditer(r"<!--\s*TTS_RESPONSE\s+weight=\"([^\"]+)\"[^>]*?(?:-->|(?:\n([\s\S]*?)\nTTS_RESPONSE\s*-->))", text))
+# Two patterns: self-closing (sounds/silent) and multiline (speech with content)
+matches = list(re.finditer(r"<!--\s*TTS_RESPONSE\s+weight=\"([^\"]+)\"\s*\n([\s\S]*?)\nTTS_RESPONSE\s*-->", text))
+if not matches:
+    matches = list(re.finditer(r"<!--\s*TTS_RESPONSE\s+weight=\"([^\"]+)\"\s*-->", text))
 if matches:
     m = matches[-1]
     weight = m.group(1)
-    content = (m.group(2) or "").strip()
+    content = (m.group(2).strip() if m.lastindex >= 2 else "")
     print(f"weight={weight}")
     if content:
         print(f"content={content}")
