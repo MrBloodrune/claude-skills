@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.2.2"
+    "version": "2.3.0"
   },
   "plugins": [
     {
@@ -137,7 +137,7 @@
     },
     {
       "name": "kokoro-tts",
-      "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server. Model stays in memory for instant playback with per-session interrupt support.",
+      "description": "Weighted voice communication for Claude Code -- speech, sounds, and silence via persistent Kokoro TTS server with verbosity mode control",
       "source": "./plugins/kokoro-tts",
       "strict": false
     },
