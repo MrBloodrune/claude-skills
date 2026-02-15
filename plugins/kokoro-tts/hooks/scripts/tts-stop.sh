@@ -10,8 +10,6 @@ ASSETS_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/ass
 
 echo "[$(date)] Kokoro TTS hook triggered" >> "$LOG"
 
-sleep 1
-
 input=$(cat)
 
 if ! echo "$input" | jq -e . >/dev/null 2>&1; then
@@ -38,26 +36,14 @@ if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
 fi
 
 # Extract Claude's last response from the transcript
-seen_tool_result=0
-claude_response=""
-while IFS= read -r line; do
-  message_type=$(echo "$line" | jq -r '.type' 2>/dev/null)
-
-  if [ "$message_type" = "tool_result" ]; then
-    seen_tool_result=1
-  fi
-
-  if [ "$message_type" = "assistant" ]; then
-    TEXT=$(echo "$line" | jq -r '.message.content[]? | select(.type == "text") | .text' 2>/dev/null | tr '\n' ' ')
-
-    if [ -n "$TEXT" ]; then
-      if [ "$seen_tool_result" != "1" ]; then
-        claude_response="$TEXT"
-        break
-      fi
-    fi
-  fi
-done < <(tac "$transcript_path")
+# tac reverses file, awk finds first assistant line not preceded by tool_result, single jq parses it
+claude_response=$(tac "$transcript_path" | awk '
+  /"type"[[:space:]]*:[[:space:]]*"tool_result"/ { skip=1; next }
+  /"type"[[:space:]]*:[[:space:]]*"assistant"/ {
+    if (!skip) { print; exit }
+    skip=0
+  }
+' | jq -r '.message.content[]? | select(.type == "text") | .text' 2>/dev/null | tr '\n' ' ')
 
 if [ -z "$claude_response" ]; then
   echo "[$(date)] No response found" >> "$LOG"

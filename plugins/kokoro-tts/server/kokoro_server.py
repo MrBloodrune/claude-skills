@@ -196,8 +196,10 @@ class KokoroServer:
             if not text:
                 return web.json_response({"status": "empty_after_strip"})
 
+        was_active = session_id in self.active_playbacks and not self.active_playbacks[session_id].done()
         self._cancel_session(session_id)
-        await asyncio.sleep(0.1)
+        if was_active:
+            await asyncio.sleep(0.1)
 
         cancel = threading.Event()
         self.cancel_events[session_id] = cancel
