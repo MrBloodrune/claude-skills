@@ -1,12 +1,12 @@
 {
   "name": "kokoro-tts",
-  "description": "Local text-to-speech voice output for Claude Code using a persistent Kokoro TTS server",
-  "version": "2.4.0",
+  "description": "Weighted voice communication for Claude Code -- speech, sounds, and silence via persistent Kokoro TTS server",
+  "version": "3.0.0",
   "author": {
     "name": "MrBloodrune"
   },
   "repository": "https://github.com/MrBloodrune/claude-skills",
   "license": "Apache-2.0",
-  "keywords": ["tts", "voice", "kokoro", "audio", "accessibility", "speech"],
+  "keywords": ["tts", "voice", "kokoro", "audio", "accessibility", "speech", "sounds", "communication"],
   "hooks": "./hooks/hooks.json"
 }
