@@ -36,9 +36,10 @@ if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Extract last assistant text response (skip tool-call-only messages)
+# Extract all assistant text from the current turn (scan backwards, stop at user prompt)
 claude_response=$(tac "$transcript_path" | python3 -c '
 import sys, json
+collected = []
 for line in sys.stdin:
     line = line.strip()
     if not line:
@@ -47,12 +48,20 @@ for line in sys.stdin:
         obj = json.loads(line)
     except:
         continue
-    if obj.get("type") != "assistant":
-        continue
-    texts = [c["text"] for c in obj.get("message", {}).get("content", []) if c.get("type") == "text" and c.get("text", "").strip()]
-    if texts:
-        print(" ".join(texts))
-        break
+    t = obj.get("type", "")
+    # Stop at a real user prompt (not tool_result which is mid-turn)
+    if t == "user":
+        content = obj.get("content", obj.get("message", {}).get("content", []))
+        is_tool_result = isinstance(content, list) and all(c.get("type") == "tool_result" for c in content)
+        if not is_tool_result:
+            break
+    if t == "assistant":
+        texts = [c["text"] for c in obj.get("message", {}).get("content", []) if c.get("type") == "text" and c.get("text", "").strip()]
+        if texts:
+            collected.append(" ".join(texts))
+if collected:
+    # Reverse since we scanned backwards, join all fragments
+    print(" ".join(reversed(collected)))
 ' 2>/dev/null)
 
 if [ -z "$claude_response" ]; then
