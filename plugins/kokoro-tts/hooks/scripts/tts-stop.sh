@@ -14,10 +14,15 @@ echo "[$(date)] Kokoro TTS hook triggered (mode=$MODE)" >> "$LOG"
 
 input=$(cat)
 
+# Brief delay to ensure transcript is fully flushed before reading
+sleep 0.5
+
 if ! echo "$input" | jq -e . >/dev/null 2>&1; then
   echo "[$(date)] Invalid JSON input, exiting" >> "$LOG"
   exit 0
 fi
+
+echo "[$(date)] Input keys: $(echo "$input" | jq -r 'keys | join(", ")')" >> "$LOG"
 
 transcript_path=$(echo "$input" | jq -r '.transcript_path')
 transcript_path="${transcript_path/#\~/$HOME}"
