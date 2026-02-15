@@ -1,50 +1,102 @@
 ---
 name: kokoro-tts
-description: This skill governs all Claude Code responses. It MUST be active at all times. It defines the TTS_SUMMARY output format that is spoken aloud to the user via a persistent local Kokoro TTS server. Every response without a TTS_SUMMARY block is a silent, broken response. This skill should be loaded on every session start and applies universally.
+description: Governs all Claude Code voice output. Defines TTS_RESPONSE format with weighted communication -- speech, sounds, or silence per response. The AI selects a weight for each response; a user-set verbosity mode caps the maximum. Every response MUST include a TTS_RESPONSE block. Always active.
 ---
 
-# Kokoro TTS Voice Output
+# Kokoro TTS — Weighted Communication
 
-## Purpose
+## Two-Channel Communication
 
-The user receives Claude's responses through two channels:
+The user receives every response through two independent channels:
 
-1. **Voice (primary)** -- A concise spoken summary delivered via local TTS after every response.
-2. **Text (supplementary)** -- The full written response displayed on screen for reference.
+1. **Text (on screen)** -- Full technical detail. Write normally, no concessions for voice.
+2. **Voice (spoken aloud)** -- Weighted output: speech, a sound effect, or silence.
 
-The voice channel is the **primary engagement interface**. The user is listening, not reading. A response without voice output is a broken response.
+The voice channel is the **primary engagement interface**. The user is listening, not reading. The text is supplementary reference.
 
-## How It Works
+## TTS_RESPONSE Format
 
-A persistent HTTP server (`kokoro-tts-server`) keeps the Kokoro ONNX model loaded in memory (~500MB). Hooks send HTTP requests to the server instead of spawning a CLI process per request, eliminating the 2-3 second model loading delay.
+Every response MUST end with a `TTS_RESPONSE` block. No exceptions -- even for silent responses. If you omit it, the hook plays a fallback coin sound (broken response).
 
-- **SessionStart** hook auto-starts the server if not running
-- **Stop** hook extracts `TTS_SUMMARY` and sends it to `POST /speak`
-- **UserPromptSubmit** hook sends `POST /interrupt` to stop current audio
-- **SessionEnd** hook sends `POST /cleanup` to release session tracking
-
-## Output Format
-
-Every response MUST end with this exact structure:
+### Speech (spoken aloud)
 
 ```
-<!-- TTS_SUMMARY
+<!-- TTS_RESPONSE weight="speech"
 Spoken content here.
-TTS_SUMMARY -->
+TTS_RESPONSE -->
 ```
 
-There are zero exceptions. Confirmations, short answers, error reports, clarifying questions -- all require the block.
+### Sound effect (no text content needed)
 
-## TTS_SUMMARY Rules
+```
+<!-- TTS_RESPONSE weight="sound:done" -->
+```
 
-### Content
+### Silent (no output at all)
 
-- 1-3 short sentences. Say what happened and what the result is.
-- Conversational tone -- like a coworker giving a brief status update.
-- Cover the gist and outcome, not the full technical detail.
-- Match tone to context: casual for simple tasks, clear and direct for complex ones.
+```
+<!-- TTS_RESPONSE weight="silent" -->
+```
 
-### Forbidden in TTS_SUMMARY
+## Weights
+
+| Weight | When to use | Output |
+|--------|------------|--------|
+| `speech` | The response has something worth saying aloud | TTS speaks the content |
+| `sound:done` | A step completed, nothing meaningful to say | Short completion chime |
+| `sound:attention` | Something needs user awareness soon | Distinct attention ping |
+| `sound:working` | Mid-iteration pulse, acknowledging progress | Soft tick |
+| `silent` | Nothing to communicate audibly | No output |
+
+## Choosing a Weight
+
+Follow this decision tree for every response:
+
+1. **Is there something the user needs to hear?** (question, result, explanation, error) -> `speech`
+2. **Did a task or step just complete?** -> `sound:done`
+3. **Does the user need to act or look at something?** -> `sound:attention`
+4. **Are you mid-iteration and just acknowledging a tool result?** -> `sound:working`
+5. **Is this a tool-heavy loop where audio would pile up?** -> `silent`
+
+### Self-Adjustment Rules
+
+- During tool-heavy iteration loops (multiple tool calls before a real conclusion): use `sound:working` or `silent`
+- Background or stacked task completions: cap at `sound:done` regardless of mode
+- When uncertain between two weights: pick the lower one
+- The AI can always drop below the ceiling -- never rise above it
+
+## Verbosity Modes
+
+The user sets a mode via `KOKORO_MODE` env var. This is a **ceiling**, not a target.
+
+| Mode | Ceiling | Speech limit | Description |
+|------|---------|-------------|-------------|
+| `quiet` | `silent` only | n/a | Deep focus, no interruptions |
+| `ambient` | `sound:attention` | n/a | Sounds only, no speech |
+| `brief` | `speech` | 1 sentence max | Normal working **(default)** |
+| `conversational` | `speech` | 2-4 sentences | Active collaboration |
+| `verbose` | `speech` | Full detail | Pair programming, teaching |
+
+The hook enforces the ceiling automatically (downgrades weight if it exceeds the mode). Speech sentence limits are your responsibility -- the hook cannot count sentences.
+
+### Mode Switching
+
+The user can say "go quiet", "go verbose", "ambient mode", etc. When they do:
+- Acknowledge in text
+- Immediately apply the new ceiling to your weight selection for the rest of the session
+- Mode is session-scoped -- it resets on restart unless set in env
+
+## Speech Content Rules
+
+These apply only when `weight="speech"`:
+
+### Content Guidelines
+
+- **brief mode**: 1 short sentence. Outcome + next action if any. "Done, tests pass." / "Which endpoint?" / "Fixed the race condition."
+- **conversational mode**: 2-4 sentences. Enough for context and explanation.
+- **verbose mode**: Full spoken detail. Explain reasoning, tradeoffs, what you did and why.
+
+### Forbidden in Speech Content
 
 - URLs, file paths, variable names, code syntax, technical constants
 - Em dashes, smart quotes, unicode symbols, or any non-ASCII characters
@@ -53,85 +105,79 @@ There are zero exceptions. Confirmations, short answers, error reports, clarifyi
 
 ### Required
 
-- Plain ASCII punctuation only (hyphens, straight quotes, periods, commas)
+- ASCII only -- plain hyphens, straight quotes, basic punctuation
 - Plain English descriptions (e.g., "the config file" not the path)
-- Present in every single response with no exceptions
-
-## Relationship to Text Response
-
-The text response is written normally -- full technical detail, tables, diagrams, code blocks, whatever the task requires. Do not shorten, simplify, or alter the text response to accommodate TTS. The two channels are independent:
-
-- **Text**: Complete, detailed, technical. Written for reading and reference.
-- **Voice**: Concise, conversational, plain English. Spoken for awareness.
+- Conversational tone -- like a coworker giving a brief status update
 
 ## Examples
 
-Good TTS_SUMMARY:
+### Good
+
 ```
-<!-- TTS_SUMMARY
-Done. The backup job is pinned to the correct node now and the config looks clean.
-TTS_SUMMARY -->
+<!-- TTS_RESPONSE weight="speech"
+Done. The backup job is pinned to the correct node now.
+TTS_RESPONSE -->
 ```
 
 ```
-<!-- TTS_SUMMARY
-I found the bug -- it was a race condition in the session handler. Fixed it and the tests pass.
-TTS_SUMMARY -->
+<!-- TTS_RESPONSE weight="sound:done" -->
 ```
 
 ```
-<!-- TTS_SUMMARY
-Here's what I found. Three containers are using more memory than allocated, and one has a stale mount. Details are in the text above.
-TTS_SUMMARY -->
+<!-- TTS_RESPONSE weight="sound:working" -->
 ```
 
-Bad TTS_SUMMARY (too long, too technical):
 ```
-<!-- TTS_SUMMARY
-I updated the /etc/sysctl.d/99-network-perf.conf file to set net.core.rmem_max to 16777216 and net.core.wmem_max to 16777216, then reloaded with sysctl --system.
-TTS_SUMMARY -->
+<!-- TTS_RESPONSE weight="silent" -->
 ```
 
-Bad TTS_SUMMARY (unicode characters):
 ```
-<!-- TTS_SUMMARY
-Done — the config is updated and everything's working.
-TTS_SUMMARY -->
+<!-- TTS_RESPONSE weight="speech"
+I found three containers over their memory limit and one with a stale mount. Details are in the text.
+TTS_RESPONSE -->
 ```
-The em dash above will produce garbled audio. Use a plain hyphen or rephrase.
+
+### Bad
+
+Speech with technical content:
+```
+<!-- TTS_RESPONSE weight="speech"
+I updated /etc/sysctl.d/99-network-perf.conf to set net.core.rmem_max to 16777216.
+TTS_RESPONSE -->
+```
+
+Speech with unicode (causes garbled audio):
+```
+<!-- TTS_RESPONSE weight="speech"
+Done — the config is updated.
+TTS_RESPONSE -->
+```
+
+Missing block entirely (causes coin fallback -- broken):
+```
+(no TTS_RESPONSE block)
+```
+
+## Backward Compatibility
+
+Legacy `TTS_SUMMARY` blocks still work -- the hook treats them as `weight="speech"`. But new responses should always use `TTS_RESPONSE`.
 
 ## Environment
 
 - **Engine**: kokoro-onnx (Kokoro-82M ONNX, fully local, no cloud)
-- **Server**: Persistent HTTP server on `127.0.0.1:6789` (auto-started by SessionStart hook)
-- **Voice**: Configurable via `KOKORO_VOICE` env var (default: `af_sky`)
-- **Speed**: Configurable via `KOKORO_SPEED` env var (default: `1.0`)
-- **Port**: Configurable via `KOKORO_PORT` env var (default: `6789`)
-- **Models**: `~/.local/share/kokoro-tts/` (downloaded separately)
-- **Audio**: PipeWire/PulseAudio, routed to user's preferred output device
-- **Log**: `/tmp/kokoro-hook.log` for debugging
-- **Prerequisites**: `uv`, `jq`, `curl` must be installed; model files downloaded to `~/.local/share/kokoro-tts/`
-
-## Setup
-
-1. Download model files:
-   ```
-   mkdir -p ~/.local/share/kokoro-tts
-   cd ~/.local/share/kokoro-tts
-   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-   ```
-2. Install the plugin in Claude Code
-3. The server starts automatically on first session
+- **Server**: Persistent HTTP on `127.0.0.1:6789` (auto-started by SessionStart hook)
+- **Voice**: `KOKORO_VOICE` env var (default: `af_sky`)
+- **Speed**: `KOKORO_SPEED` env var (default: `1.0`)
+- **Port**: `KOKORO_PORT` env var (default: `6789`)
+- **Mode**: `KOKORO_MODE` env var (default: `brief`)
+- **Log**: `/tmp/kokoro-hook.log`
 
 ## Troubleshooting
 
 If the user reports no audio:
-1. Check if `TTS_SUMMARY` block was included in the response
-2. Check server health: `curl http://127.0.0.1:6789/health`
-3. Check the log: `tail -20 /tmp/kokoro-hook.log`
-4. Test directly: `curl -X POST http://127.0.0.1:6789/speak -H "Content-Type: application/json" -d '{"text":"test","session_id":"t1"}'`
+1. Check if `TTS_RESPONSE` block was included
+2. Server health: `curl http://127.0.0.1:6789/health`
+3. Log: `tail -20 /tmp/kokoro-hook.log`
+4. Direct test: `curl -X POST http://127.0.0.1:6789/speak -H "Content-Type: application/json" -d '{"text":"test","session_id":"t1"}'`
 
-If the user reports garbled audio at the start of playback, check the log for non-ASCII characters in the summary content. Replace em dashes, smart quotes, and unicode with plain ASCII equivalents.
-
-For advanced users, the server can be managed as a systemd user service for guaranteed uptime across sessions.
+If garbled audio: check log for non-ASCII characters in speech content. Replace with plain ASCII.
