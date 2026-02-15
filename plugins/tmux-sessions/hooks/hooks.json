@@ -1,14 +1,8 @@
 {
-  "description": "tmux-sessions hooks — registers Claude sessions running in tmux and emits lifecycle events to ~/.claude/tmux-events/",
+  "description": "tmux-sessions hooks — registers Claude sessions running in tmux",
   "hooks": {
     "SessionStart": [
       { "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh", "timeout": 5 }] }
-    ],
-    "Stop": [
-      { "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh", "timeout": 5, "async": true }] }
-    ],
-    "PreToolUse": [
-      { "matcher": "Write|Edit|Bash|NotebookEdit", "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh", "timeout": 5, "async": true }] }
     ],
     "SessionEnd": [
       { "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh", "timeout": 5 }] }
