@@ -7,19 +7,11 @@ description: This skill should be used when the user asks to "check tmux", "sess
 
 ## Purpose
 
-Check on the status of Claude sessions dispatched to tmux. The parent session must actively poll -- there is no automatic callback.
+Quick manual spot-checks on dispatched sessions. Use this when the user asks about session status outside of the normal monitoring loop handled by tmux-dispatch.
 
-## Answering "Is it done?"
+## Is It Done?
 
-Check the sentinel file first -- this is the fastest and most reliable method:
-
-```bash
-cat ~/.claude/tmux-sessions/<name>.done 2>/dev/null
-```
-
-If the file exists, the session has stopped. It contains JSON with the stop reason and timestamp.
-
-If no sentinel file exists, check if Claude is still running:
+Check if Claude is still running in the session:
 
 ```bash
 pane_pid=$(tmux list-panes -t <name> -F '#{pane_pid}' 2>/dev/null)
@@ -30,73 +22,38 @@ else
 fi
 ```
 
-If exited with no sentinel file, the session may have crashed. Capture the pane to see what happened.
-
-## Checking Progress
-
-### Capture pane output
-
-The most direct way to see what the child is doing right now:
+If exited, capture the pane to see what happened:
 
 ```bash
 tmux capture-pane -t <name> -p -S -50
 ```
 
-### Activity log (event watcher)
+## What's It Doing?
 
-One-liner-per-tool-use chronological summary:
+Capture current pane output:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
+tmux capture-pane -t <name> -p -S -50
 ```
 
-This prints recent tool uses and exits on stop. Use it for a quick catch-up.
-
-### Event queue (raw)
+## Session Exists?
 
 ```bash
-# List recent events (newest first)
-ls -lt ~/.claude/tmux-events/ 2>/dev/null | head -10
-
-# Read the latest event
-cat "$(ls -t ~/.claude/tmux-events/*.json 2>/dev/null | head -1)" 2>/dev/null | jq .
+tmux has-session -t <name> 2>/dev/null && echo "exists" || echo "gone"
 ```
 
-## Active Sessions
+## List All Sessions
 
 ```bash
-# Registered Claude tmux sessions
-for f in ~/.claude/tmux-sessions/*.json; do
-    [ -f "$f" ] && jq -c '{session: .session_name, project: .project, started: (.started | todate)}' "$f" 2>/dev/null
-done
-
-# Cross-reference with live tmux sessions
 tmux list-sessions 2>/dev/null
 ```
 
-## Clean Up
+## Active Registrations
+
+List Claude sessions registered by the session-start hook:
 
 ```bash
-# Remove old events (older than 1 hour)
-find ~/.claude/tmux-events/ -name '*.json' -mmin +60 -delete
-
-# Remove stale sentinel files
-rm -f ~/.claude/tmux-sessions/*.done
-```
-
-## Event Formats
-
-**Sentinel file** (`<name>.done`):
-```json
-{"session_name": "meshstended", "reason": "task_complete", "timestamp": 1739487900, "finished": "2025-02-14T01:25:00Z"}
-```
-
-**Stop event** (`*-stop.json`):
-```json
-{"event": "stop", "session_name": "meshstended", "reason": "task_complete", "timestamp": 1739487900}
-```
-
-**Tool use event** (`*-tool-*.json`):
-```json
-{"event": "tool_use", "session_name": "meshstended", "tool": "Write", "input_summary": "src/main.rs", "timestamp": 1739487850}
+for f in ~/.claude/tmux-sessions/*.json; do
+    [ -f "$f" ] && jq -c '{session: .session_name, project: .project, started: (.started | todate)}' "$f" 2>/dev/null
+done
 ```
