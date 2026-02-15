@@ -233,6 +233,18 @@ class KokoroServer:
         self.cancel_events.pop(session_id, None)
         return web.json_response({"status": "cleaned", "session_id": session_id})
 
+    async def handle_interrupt_all(self, request: web.Request) -> web.Response:
+        sessions = [
+            sid for sid, task in self.active_playbacks.items()
+            if not task.done()
+        ]
+        for sid in sessions:
+            self._cancel_session(sid)
+        return web.json_response({
+            "status": "interrupted",
+            "sessions_cancelled": len(sessions),
+        })
+
     async def handle_health(self, request: web.Request) -> web.Response:
         active = {k: not v.done() for k, v in self.active_playbacks.items()}
         return web.json_response({
@@ -264,6 +276,7 @@ def main():
     app = web.Application()
     app.router.add_post("/speak", server.handle_speak)
     app.router.add_post("/interrupt", server.handle_interrupt)
+    app.router.add_post("/interrupt-all", server.handle_interrupt_all)
     app.router.add_post("/cleanup", server.handle_cleanup)
     app.router.add_get("/health", server.handle_health)
 
