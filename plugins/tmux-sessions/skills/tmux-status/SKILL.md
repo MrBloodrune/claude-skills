@@ -7,25 +7,50 @@ description: This skill should be used when the user asks to "check tmux", "sess
 
 ## Purpose
 
-Check on the status of Claude sessions dispatched to tmux. Provides methods for reading the event queue, listing active sessions, capturing pane output, and determining whether a session has completed.
+Check on the status of Claude sessions dispatched to tmux. The parent session must actively poll -- there is no automatic callback.
 
-## How It Works
+## Answering "Is it done?"
 
-If the session was dispatched with the `tmux-dispatch` skill, a **stop notification is automatic** — the dispatched session's stop hook injects a message into this pane when it finishes. You don't need to poll.
+Check the sentinel file first -- this is the fastest and most reliable method:
 
-This skill is for **mid-task progress checks** or when you didn't get an automatic notification.
+```bash
+cat ~/.claude/tmux-sessions/<name>.done 2>/dev/null
+```
 
-## How to Check
+If the file exists, the session has stopped. It contains JSON with the stop reason and timestamp.
+
+If no sentinel file exists, check if Claude is still running:
+
+```bash
+pane_pid=$(tmux list-panes -t <name> -F '#{pane_pid}' 2>/dev/null)
+if [ -n "$pane_pid" ] && pgrep -P "$pane_pid" -f "claude" > /dev/null 2>&1; then
+    echo "running"
+else
+    echo "exited"
+fi
+```
+
+If exited with no sentinel file, the session may have crashed. Capture the pane to see what happened.
+
+## Checking Progress
+
+### Capture pane output
+
+The most direct way to see what the child is doing right now:
+
+```bash
+tmux capture-pane -t <name> -p -S -50
+```
 
 ### Activity log (event watcher)
 
-Run the event watcher for a quick chronological summary of what the session has done:
+One-liner-per-tool-use chronological summary:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <session_name> 1
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
 ```
 
-This prints one line per tool use and exits on stop. Use it for a quick catch-up, not long-running polling.
+This prints recent tool uses and exits on stop. Use it for a quick catch-up.
 
 ### Event queue (raw)
 
@@ -35,14 +60,9 @@ ls -lt ~/.claude/tmux-events/ 2>/dev/null | head -10
 
 # Read the latest event
 cat "$(ls -t ~/.claude/tmux-events/*.json 2>/dev/null | head -1)" 2>/dev/null | jq .
-
-# Show all stop events (completions)
-for f in ~/.claude/tmux-events/*-stop.json; do
-    [ -f "$f" ] && jq -c '{session: .session_name, reason: .reason, time: (.timestamp | todate)}' "$f" 2>/dev/null
-done
 ```
 
-### Active sessions
+## Active Sessions
 
 ```bash
 # Registered Claude tmux sessions
@@ -54,44 +74,29 @@ done
 tmux list-sessions 2>/dev/null
 ```
 
-### Read a session's current output
+## Clean Up
 
 ```bash
-tmux capture-pane -t <session_name> -p -S -50
-```
-
-### Check if Claude is still running
-
-```bash
-pane_pid=$(tmux list-panes -t <session_name> -F '#{pane_pid}' 2>/dev/null)
-if [ -n "$pane_pid" ] && pgrep -P "$pane_pid" -f "claude" > /dev/null 2>&1; then
-    echo "running"
-else
-    echo "exited"
-fi
-```
-
-### Clean up old events
-
-```bash
+# Remove old events (older than 1 hour)
 find ~/.claude/tmux-events/ -name '*.json' -mmin +60 -delete
+
+# Remove stale sentinel files
+rm -f ~/.claude/tmux-sessions/*.done
 ```
 
 ## Event Formats
+
+**Sentinel file** (`<name>.done`):
+```json
+{"session_name": "meshstended", "reason": "task_complete", "timestamp": 1739487900, "finished": "2025-02-14T01:25:00Z"}
+```
 
 **Stop event** (`*-stop.json`):
 ```json
 {"event": "stop", "session_name": "meshstended", "reason": "task_complete", "timestamp": 1739487900}
 ```
 
-**Tool use event** (`*-tool.json`):
+**Tool use event** (`*-tool-*.json`):
 ```json
-{"event": "tool_use", "session_name": "meshstended", "tool": "Write", "input_summary": "MeshstendedTypes.h", "timestamp": 1739487850}
+{"event": "tool_use", "session_name": "meshstended", "tool": "Write", "input_summary": "src/main.rs", "timestamp": 1739487850}
 ```
-
-## Answering "Is it done?"
-
-1. Check for stop events: `ls ~/.claude/tmux-events/*-stop.json 2>/dev/null`
-2. If no stop event, check if claude is still running (pgrep method above)
-3. If running, capture pane output to see current progress
-4. If exited with no stop event, check tmux pane for errors

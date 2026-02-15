@@ -7,40 +7,42 @@ description: This skill should be used when the user asks to "run this in tmux",
 
 ## Purpose
 
-Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session in tmux while keeping the current session free. Handles interactive launch, safe prompt delivery via tmux paste-buffer, and event monitoring.
+Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session acts as the senior engineer -- it dispatches work, monitors progress via file-based events and pane capture, and checks results when done.
+
+## Architecture
+
+- **Parent session**: Your current Claude session (not in tmux). Dispatches and monitors.
+- **Child session**: Claude running inside tmux in a separate Kitty window. Does the work autonomously.
+- **Communication**: One-way via filesystem. Child writes events to `~/.claude/tmux-events/` and a sentinel file to `~/.claude/tmux-sessions/<name>.done` on completion. Parent polls to check progress.
+
+There is **no automatic callback** into the parent session. You must actively check on the child.
 
 ## Launch Procedure
 
 Follow these steps exactly. Each step matters -- shortcuts cause failures.
 
-### Step 1: Create the tmux session
+### Step 1: Create the tmux session in a new Kitty window
 
-Create a named tmux session rooted at the project directory:
+Create a named tmux session inside a new Kitty terminal window:
 
 ```bash
-tmux new-session -d -s <name> -c <project_dir>
+kitty --single-instance tmux new-session -d -s <name> -c <project_dir>
 ```
 
 - `<name>`: Short, descriptive (e.g., `meshstended`, `auth-refactor`).
 - `<project_dir>`: Absolute path to the project root.
+- This opens a new Kitty OS window with the tmux session attached.
 - Verify creation with `tmux list-sessions`.
-
-Register the parent session so the dispatched session can notify you when it stops:
-
-```bash
-# Record this session as the parent (for stop notification)
-tmux display-message -p '#S' > ~/.claude/tmux-sessions/<name>.parent
-```
 
 ### Step 2: Launch interactive Claude
 
 Start Claude interactively inside the new session:
 
 ```bash
-tmux send-keys -t <name> "claude" Enter
+tmux send-keys -t <name> "claude --dangerously-skip-permissions" Enter
 ```
 
-**CRITICAL: NEVER use `claude -p`** -- it exits after one exchange. Follow-up questions or permission prompts go to zsh, not Claude.
+**CRITICAL: NEVER use `claude -p`** -- it exits after one exchange. Follow-up questions go to zsh, not Claude.
 
 Wait 5-8 seconds for Claude to initialize before proceeding.
 
@@ -81,28 +83,40 @@ tmux capture-pane -t <name> -p -S -20
 
 Expect to see Claude processing (reading files, creating tasks, etc.). If a shell prompt appears instead, Claude exited -- check for errors in the captured output.
 
-### Step 6: Done — notification is automatic
+### Step 6: Monitor and check completion
 
-The parent session file you wrote in Step 1 enables automatic notification. When the dispatched session stops, the stop hook will inject a message into this tmux pane telling you it's done. No polling needed.
+There is no automatic callback. You must poll for completion.
 
-To check progress manually before it finishes:
+**Check if the session is done:**
 
 ```bash
-# Activity log (one-liner per tool use)
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1 &
-# Or capture the pane directly
-tmux capture-pane -t <name> -p -S -30
+# Sentinel file is written by the child's stop hook
+cat ~/.claude/tmux-sessions/<name>.done 2>/dev/null
 ```
+
+If the file exists, the child has stopped. Its contents include the stop reason and timestamp.
+
+**Check progress while running:**
+
+```bash
+# Capture recent pane output
+tmux capture-pane -t <name> -p -S -30
+
+# Or scan the event log for a quick summary
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
+```
+
+**IMPORTANT:** As the senior session, you should check on the child periodically or when the user asks. Don't assume it succeeded -- verify by reading the pane output or sentinel file.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Using `claude -p` | Use interactive `claude` (no flags) |
+| Using `claude -p` | Use interactive `claude --dangerously-skip-permissions` |
 | Using `send-keys` for the prompt | Use `load-buffer` + `paste-buffer` |
 | Not waiting for Claude to init | `sleep 5` after launching claude |
+| Assuming automatic notification | Poll the sentinel file or capture the pane |
 | Sending a reply to a `-p` session | Can't -- it already exited. Relaunch interactively |
-| Guessing CLI flags | Check `claude --help` first |
 
 ## Sending Follow-Up Messages
 

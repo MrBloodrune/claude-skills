@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
-# tmux-sessions: Notify that this Claude session is stopping.
-# Writes a stop event to ~/.claude/tmux-events/.
+# tmux-sessions: Write stop event and sentinel file when a Claude session stops.
+# The sentinel file (~/.claude/tmux-sessions/<name>.done) is the primary
+# mechanism for the parent session to detect completion.
 
 [ -z "${TMUX:-}" ] && exit 0
 
@@ -24,6 +25,7 @@ fi
 reason=$(echo "$input" | jq -r '.reason // "unknown"' 2>/dev/null)
 ts=$(date +%s)
 
+# Write event file (for event-watcher.sh)
 jq -n \
   --arg event "stop" \
   --arg hash "$session_hash" \
@@ -33,18 +35,10 @@ jq -n \
   '{event: $event, session_hash: $hash, session_name: $name, reason: $reason, timestamp: $ts}' \
   > "$EVENTS_DIR/${ts}-${session_hash}-stop.json"
 
-# Notify parent session via tmux if one is registered
-parent_file="$SESSIONS_DIR/${session_name}.parent"
-if [ -f "$parent_file" ]; then
-    parent_session=$(cat "$parent_file")
-    if tmux has-session -t "$parent_session" 2>/dev/null; then
-        notify_file="/tmp/tmux-notify-${session_name}.txt"
-        echo "The tmux session \"${session_name}\" has stopped (reason: ${reason}). Check its status and report back." > "$notify_file"
-        tmux load-buffer "$notify_file"
-        tmux paste-buffer -t "$parent_session"
-        sleep 0.5
-        tmux send-keys -t "$parent_session" Enter
-        rm -f "$notify_file"
-    fi
-    rm -f "$parent_file"
-fi
+# Write sentinel file (for parent session to detect completion)
+jq -n \
+  --arg reason "$reason" \
+  --argjson ts "$ts" \
+  --arg name "$session_name" \
+  '{session_name: $name, reason: $reason, timestamp: $ts, finished: ($ts | todate)}' \
+  > "$SESSIONS_DIR/${session_name}.done"
