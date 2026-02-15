@@ -162,15 +162,38 @@ tmux capture-pane -t <name> -p -S -30
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/event-watcher.sh <name> 1
 ```
 
-### Step 8: Review after completion
+### Step 8: Validate completion against the plan
 
-Only after the sentinel file confirms the child is done should you:
-- Read project files to inspect what changed
-- Run tests or linters to verify the work
-- Report results to the user
-- Take follow-up actions on those files
+Once the sentinel file confirms the child is done, launch a **code-reviewer subagent** to verify the work. The subagent compares what was actually done against the original prompt/plan that was dispatched.
 
-**IMPORTANT:** Do not assume the child succeeded -- verify by reviewing the actual changes and running relevant checks.
+Use the `Task` tool with `subagent_type: "superpowers:code-reviewer"` and provide it:
+
+1. **The original prompt** -- read it back from `/tmp/tmux-prompt-<name>.txt` (the file written in Step 3).
+2. **The git diff** -- run `git diff` or `git log --oneline -n 20` in the project directory to see what changed.
+3. **Instructions** -- ask the reviewer to verify:
+   - All items in the original plan were addressed
+   - No work was left incomplete or skipped
+   - Changes are consistent with the stated goals
+   - No unrelated modifications were introduced
+
+Example Task prompt:
+
+```
+Review the work done by a dispatched tmux session against its original plan.
+
+Original plan (from /tmp/tmux-prompt-<name>.txt):
+<paste or reference the file contents>
+
+Check the git history and file changes in <project_dir> to verify:
+1. Every item in the plan was completed
+2. Nothing was left half-done or skipped
+3. Changes match the plan's intent -- no scope creep or unrelated edits
+4. Tests pass if applicable
+
+Report: what was completed, what was missed (if anything), and any concerns.
+```
+
+**After the review completes**, report the findings to the user. If the reviewer flags gaps or issues, discuss next steps -- the user may want to dispatch a follow-up session or handle it in the current session.
 
 ## Common Mistakes
 
@@ -183,6 +206,7 @@ Only after the sentinel file confirms the child is done should you:
 | Using `kitty --single-instance` | Drops command args when existing Kitty is running. Use `kitty sh -c "..."` instead |
 | Reading/editing project files while child runs | Use pane capture to monitor. Only touch files after the child is done |
 | Assuming automatic notification | Poll the sentinel file or capture the pane |
+| Skipping validation after completion | Always launch a code-reviewer subagent to verify the work matched the plan |
 | Sending a reply to a `-p` session | Can't -- it already exited. Relaunch interactively |
 
 ## Sending Follow-Up Messages
