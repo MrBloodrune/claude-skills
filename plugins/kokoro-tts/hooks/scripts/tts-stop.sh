@@ -10,7 +10,15 @@ SERVER="http://127.0.0.1:$PORT"
 LOG="/tmp/kokoro-hook.log"
 ASSETS_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/assets"
 
+MUTE_FILE="${XDG_RUNTIME_DIR:-/tmp}/kokoro-muted"
+
 echo "[$(date)] Kokoro TTS hook triggered (mode=$MODE)" >> "$LOG"
+
+# Check mute state before doing anything
+if [ -f "$MUTE_FILE" ]; then
+  echo "[$(date)] Muted -- skipping all audio" >> "$LOG"
+  exit 0
+fi
 
 input=$(cat)
 
@@ -42,9 +50,12 @@ if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
 fi
 
 # Extract all assistant text from the current turn (scan backwards, stop at user prompt)
+# Also detect intermediate stops (last assistant entry has tool_use = more turns coming)
 claude_response=$(tac "$transcript_path" | python3 -c '
 import sys, json
 collected = []
+last_assistant_has_tool_use = False
+first_assistant = True
 for line in sys.stdin:
     line = line.strip()
     if not line:
@@ -54,6 +65,9 @@ for line in sys.stdin:
     except:
         continue
     t = obj.get("type", "")
+    # Skip non-conversation entries
+    if t not in ("user", "assistant"):
+        continue
     # Stop at a real user prompt (not tool_result which is mid-turn)
     if t == "user":
         content = obj.get("content", obj.get("message", {}).get("content", []))
@@ -61,9 +75,18 @@ for line in sys.stdin:
         if not is_tool_result:
             break
     if t == "assistant":
-        texts = [c["text"] for c in obj.get("message", {}).get("content", []) if c.get("type") == "text" and c.get("text", "").strip()]
+        msg_content = obj.get("message", {}).get("content", [])
+        content_types = {c.get("type") for c in msg_content}
+        # Track if the most recent assistant entry has tool_use (intermediate stop)
+        if first_assistant:
+            last_assistant_has_tool_use = "tool_use" in content_types
+            first_assistant = False
+        texts = [c["text"] for c in msg_content if c.get("type") == "text" and c.get("text", "").strip()]
         if texts:
             collected.append(" ".join(texts))
+# If the last assistant entry was a tool_use, this is an intermediate stop -- skip
+if last_assistant_has_tool_use:
+    sys.exit(0)
 if collected:
     # Reverse since we scanned backwards, join all fragments
     print(" ".join(reversed(collected)))
