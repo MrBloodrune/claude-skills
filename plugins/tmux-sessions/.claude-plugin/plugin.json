@@ -1,6 +1,6 @@
 {
   "name": "tmux-sessions",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with adaptive pane-based monitoring",
   "author": { "name": "MrBloodrune" },
   "repository": "https://github.com/MrBloodrune/claude-skills",

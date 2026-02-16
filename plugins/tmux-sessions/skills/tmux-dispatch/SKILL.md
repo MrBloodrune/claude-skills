@@ -36,10 +36,10 @@ When the child session completes a response, Claude Code sometimes displays **su
 To accept and submit a prompt suggestion from the parent:
 
 ```bash
-tmux send-keys -t <name> Tab Enter
+tmux send-keys -t <name> "Tab" "Enter"
 ```
 
-**Tab** accepts the autocomplete text. **Enter** submits it. Sending bare `Enter` without `Tab` submits an empty line and does nothing useful.
+**CRITICAL: `"Tab"` and `"Enter"` must be separate quoted arguments.** Each is a tmux key name. If combined into one string (`"Tab Enter"`), tmux types the literal characters instead of pressing the keys. **Tab** accepts the autocomplete text. **Enter** submits it. Sending bare `Enter` without `Tab` submits an empty line and does nothing useful.
 
 This is the most common cause of apparent stalls -- the child finished its work, a continuation suggestion appeared, and nobody accepted it.
 
@@ -191,7 +191,7 @@ This tells you: **crashed** (no process) vs **hung** (process alive but no outpu
 
 **3. Attempt resolution** based on what you see:
 
-- **Prompt suggestion visible** (child's response ended and text appears on the input line -- this is Claude Code's autocomplete, not user input) → accept, submit, and capture in one command: `tmux send-keys -t <name> Tab Enter && sleep 7 && tmux capture-pane -t <name> -p -S -50`. Tab accepts the suggestion, Enter submits it, then capture confirms it took. This is the most common stall cause.
+- **Prompt suggestion visible** (child's response ended and text appears on the input line -- this is Claude Code's autocomplete, not user input) → accept, submit, and capture in one command: `tmux send-keys -t <name> "Tab" "Enter" && sleep 7 && tmux capture-pane -t <name> -p -S -50`. `"Tab"` and `"Enter"` must be separate quoted arguments (never `"Tab Enter"` combined). Tab accepts the suggestion, Enter submits it, then capture confirms it took. This is the most common stall cause.
 - **Child waiting at a permission prompt or question** → send appropriate input via `tmux send-keys -t <name> "response" Enter`.
 - **Child appears hung mid-output** (process alive, no new content) → send a gentle nudge: `tmux send-keys -t <name> Enter`.
 - **Child process exited or session is dead** → skip to Completion & Review (Phase 3) and report what happened.
@@ -269,7 +269,8 @@ Report: what was completed, what was missed (if anything), and any concerns.
 | Ignoring identical captures | Track consecutive identical output -- 2 is a warning, 3 is a confirmed stall |
 | Not verifying completion | Always check process status with `pgrep`, not just pane content |
 | Skipping validation after completion | Always launch a code-reviewer subagent to verify the work matched the plan |
-| Sending bare `Enter` to accept prompt suggestions | Suggestions need `Tab` then `Enter` -- Tab accepts the autocomplete, Enter submits. Bare Enter sends an empty line |
+| Sending bare `Enter` to accept prompt suggestions | Suggestions need `"Tab"` then `"Enter"` as separate args -- Tab accepts the autocomplete, Enter submits. Bare Enter sends an empty line |
+| Quoting `"Tab Enter"` as one argument | tmux treats unrecognized key names as literal text. `"Tab Enter"` types the characters. Use `"Tab" "Enter"` as two separate arguments |
 
 ## Sending Follow-Up Messages
 
