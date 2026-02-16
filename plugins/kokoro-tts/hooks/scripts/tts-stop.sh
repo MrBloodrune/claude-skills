@@ -8,7 +8,6 @@ PORT="${KOKORO_PORT:-6789}"
 MODE="${KOKORO_MODE:-brief}"
 SERVER="http://127.0.0.1:$PORT"
 LOG="/tmp/kokoro-hook.log"
-ASSETS_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}/assets"
 
 MUTE_FILE="${XDG_RUNTIME_DIR:-/tmp}/kokoro-muted"
 
@@ -45,7 +44,7 @@ session_id=$(echo "$transcript_path" | md5sum | awk '{print $1}')
 # Health check
 if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
   echo "[$(date)] ERROR: Kokoro server not responding" >> "$LOG"
-  paplay "$ASSETS_DIR/error.wav" 2>/dev/null &
+  curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"error\",\"session_id\":\"health-check\"}" >/dev/null 2>&1 &
   exit 0
 fi
 
@@ -137,8 +136,8 @@ content=$(echo "$parsed" | tail -n +2 | sed 's/^content=//')
 echo "[$(date)] Parsed: weight=$weight content_len=${#content}" >> "$LOG"
 
 if [ "$weight" = "none" ]; then
-  echo "[$(date)] No TTS block found, playing coin" >> "$LOG"
-  paplay "$ASSETS_DIR/coin.wav" 2>/dev/null &
+  echo "[$(date)] No TTS block found, playing error" >> "$LOG"
+  curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"error\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
   exit 0
 fi
 
@@ -187,20 +186,20 @@ case "$weight" in
     ;;
   sound:working)
     echo "[$(date)] Playing working tick" >> "$LOG"
-    paplay "$ASSETS_DIR/working.wav" 2>/dev/null &
+    curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"working\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
     ;;
   sound:done)
     echo "[$(date)] Playing done chime" >> "$LOG"
-    paplay "$ASSETS_DIR/done.wav" 2>/dev/null &
+    curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"done\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
     ;;
   sound:attention)
     echo "[$(date)] Playing attention ping" >> "$LOG"
-    paplay "$ASSETS_DIR/attention.wav" 2>/dev/null &
+    curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"attention\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
     ;;
   speech)
     if [ -z "$content" ]; then
       echo "[$(date)] Speech weight but no content, playing done" >> "$LOG"
-      paplay "$ASSETS_DIR/done.wav" 2>/dev/null &
+      curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"done\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
     else
       preview="${content:0:40}"
       echo "[$(date)] Speaking: \"${preview}...\" (${#content} chars)" >> "$LOG"
