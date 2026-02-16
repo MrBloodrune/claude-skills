@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to "run this in tmux",
 
 # Session Operator Guide
 
-## Purpose & Ownership Model
+## Ownership Model
 
 Delegate long-running tasks (implementation plans, large refactors, multi-file migrations) to a separate Claude session running in a new Kitty window with tmux. The parent session dispatches work, then monitors progress through direct pane capture until the child completes.
 
@@ -29,7 +29,7 @@ There is **no automatic callback** into the parent session. You must actively ca
 - Make "small fixes" while the child is running.
 - Start working on related files in the same project concurrently.
 
-## Claude Code Prompt Suggestions
+## Prompt Suggestions
 
 When the child session completes a response, Claude Code sometimes displays **suggestion text** in the input area (e.g., "proceed with remaining tasks"). This is **autocomplete** -- the child did not type it. There is no "self-prompting" mechanism. The suggestion sits inert until accepted.
 
@@ -43,7 +43,7 @@ tmux send-keys -t <name> "Tab" "Enter"
 
 This is the most common cause of apparent stalls -- the child finished its work, a continuation suggestion appeared, and nobody accepted it.
 
-## Launch Procedure
+## Launch (Operator)
 
 Follow these steps exactly. Each step matters -- shortcuts cause failures.
 
@@ -113,7 +113,7 @@ Run this with `run_in_background: true` on the Bash tool. When the background ta
 
 **On success:** The child is confirmed active. Transition to Active Monitoring.
 
-## Active Monitoring (Phase 2)
+## Monitor (Observer)
 
 Once dispatched, you shift to observer mode -- file-read-only, but actively managing the workflow. Monitor using discrete one-shot background captures. Each check is a decision point: is the child making progress toward completing the dispatched work? You may research abnormalities, interact with the user, dispatch read-only subagents, and intervene in the child session (nudges, suggestion acceptance, follow-up prompts) -- but you must not touch project files.
 
@@ -159,7 +159,7 @@ You hold the previous pane capture in conversation context and compare naturally
 
 After each pane capture, note a short summary of what the child was doing (e.g., "editing auth.rs", "running tests", "waiting at prompt") and the last 20-30 lines of output. When the next background check completes, compare against this summary. If intervening conversation has pushed the previous capture out of immediate context, the summary ensures you can still detect changes vs stalls.
 
-## Stall Detection & Autonomous Triage
+## Stall Detection & Triage
 
 When pane output is identical across consecutive checks, the child may be stalled.
 
@@ -202,7 +202,7 @@ This tells you: **crashed** (no process) vs **hung** (process alive but no outpu
 
 Maximum 2-3 autonomous intervention attempts before escalating. Don't sit there poking at a dead session.
 
-## Completion & Review (Phase 3)
+## Verify (Validator)
 
 ### Detecting completion
 
@@ -288,7 +288,7 @@ tmux load-buffer /tmp/tmux-reply.txt && tmux paste-buffer -t <name> && sleep 1 &
 
 Quick manual spot-checks on dispatched sessions. Use this when the user asks about session status outside of the normal monitoring loop.
 
-## Is It Done?
+### Is It Done?
 
 Check if Claude is still running in the session:
 
@@ -307,7 +307,7 @@ If exited, capture the pane to see what happened:
 tmux capture-pane -t <name> -p -S -50
 ```
 
-## What's It Doing?
+### What's It Doing?
 
 Capture current pane output:
 
@@ -315,19 +315,19 @@ Capture current pane output:
 tmux capture-pane -t <name> -p -S -50
 ```
 
-## Session Exists?
+### Session Exists?
 
 ```bash
 tmux has-session -t <name> 2>/dev/null && echo "exists" || echo "gone"
 ```
 
-## List All Sessions
+### List All Sessions
 
 ```bash
 tmux list-sessions 2>/dev/null
 ```
 
-## Active Registrations
+### Active Registrations
 
 List Claude sessions registered by the session-start hook:
 
