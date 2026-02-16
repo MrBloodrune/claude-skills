@@ -7,16 +7,17 @@ description: >-
   works", "create an interactive guide to memory layout", "build an animated
   explainer for task scheduling", "make a technical visualization of BLE
   packets". Produces a single self-contained HTML file with animated
-  visualizations, interactive controls, PCB schematic aesthetic, sidebar
-  navigation, and deep-dive modals. Supports 15 visualization patterns
-  across timing, state, structural, and data categories.
+  visualizations, interactive controls, PCB schematic aesthetic, wiki-style
+  dual sidebar navigation, pinnable popovers, and tabbed deep-dive modals.
+  Supports 15 visualization patterns across timing, state, structural, and
+  data categories.
 ---
 
 # Technical Visualizer
 
 ## Identity
 
-You are building an interactive educational visualization page. Your output is a single self-contained HTML file that teaches a technical topic through animated diagrams, interactive controls, and progressive disclosure. Every page follows the PCB schematic aesthetic by default, uses validated animation patterns, and meets accessibility standards. The reference implementation at `references/reference-implementation.html` is the quality floor, not the ceiling.
+You are building an interactive educational visualization page. Your output is a single self-contained HTML file that teaches a technical topic through animated diagrams, interactive controls, and 3-layer progressive disclosure (L1: visualization + animation, L2: pinnable popovers on hover/click, L3: tabbed deep-dive modals). Every page follows the PCB schematic aesthetic by default, uses wiki-style dual sidebar navigation, validated animation patterns, and meets accessibility standards. The reference implementation at `references/reference-implementation.html` is the quality floor, not the ceiling.
 
 ## Pre-Flight: Topic Analysis
 
@@ -64,30 +65,34 @@ Read `references/theme-system.md`. Generate the complete `:root` CSS block with 
 
 Read `references/page-architecture.md`. Generate:
 - Hero section with chip-element title, subtitle, tagline, stat row
-- Sidebar navigation with scroll tracking, collapse toggle, motion toggle
+- Dual sidebar navigation: left series-nav (220px, collapsible) with page links + right page-toc (180px) with scrollspy section headings
 - Category headers grouping section cards
 - Section card shells with consistent markup
-- Footer with pad dots and references
+- Footer with pad dots, series nav links (mobile fallback), and references
 - Modal backdrop and container
 
 ### Step 3: Content and Visualizations
 
 Read `references/pattern-catalog.md` for each selected pattern's implementation.
 Read `references/animation-quality.md` for motion smoothing techniques — exponential smoothing, progressive reveal, probabilistic spawning, CSS transition tiers, and GPU compositing rules.
-Read `references/interaction-patterns.md` for modals, controls, and accessibility specs.
+Read `references/interaction-patterns.md` for modals, controls, accessibility specs, **popover system (Layer 2)**, and **tabbed modals (Layer 3)**.
 
 For each section card, generate:
 - Card header: SVG expand icon, index, pattern label, title, summary
 - Card body: explanation content-block, viz-container with controls, code-block with syntax highlighting
-- Deep-dive button linked to a `<template>` modal
+- Deep-dive button linked to a `<template>` modal with **2-4 internal tabs** (Overview, Details, Code, Related)
+- **Popover annotations** on technical terms, addresses, config values, and field names (`.has-popover` with `data-popover-title` and `data-popover-body`)
 
 ### Step 4: Templates and JavaScript
 
-Generate `<template>` elements at end of `<body>` for all deep-dive modals.
+Generate `<template>` elements at end of `<body>` for all deep-dive modals (each with tabbed interior).
 Generate complete `<script>` block with:
 - `init()` function called on DOMContentLoaded
 - IntersectionObserver for every animated viz container
-- Card toggle, modal open/close, scroll tracking
+- Card toggle, modal open/close with tab reset, scroll tracking
+- Popover system: `showPopover`, `hidePopover`, `pinPopover`, `dismissPopover`, `initPopovers`
+- Page TOC and scrollspy: `initPageToc`, `initScrollspy`
+- Modal tab switching: `switchModalTab`
 - All visualization implementations
 - Resize handler, reduced motion toggle
 
@@ -133,7 +138,7 @@ State vars: `[name]AnimId`, `[name]LastTime`, `[name]Playing`.
 - No external dependencies except Google Fonts.
 - Vanilla JS only. No frameworks.
 - CSS custom properties for all theme values.
-- Responsive at 768px breakpoint.
+- Responsive at three breakpoints: 1400px (hide right sidebar), 1200px (hamburger left sidebar), 768px (mobile).
 
 ## NEVER
 
@@ -147,6 +152,11 @@ State vars: `[name]AnimId`, `[name]LastTime`, `[name]Playing`.
 8. NEVER generate `<table>` without `.data-table` class and full styling
 9. NEVER mix inline styles and CSS classes for the same property across sections
 10. NEVER write JavaScript targeting DOM elements from another section's chunk
+11. NEVER allow more than one pinned popover at a time — new pin dismisses old
+12. NEVER chain popovers (popover from popover) or open modals from popovers
+13. NEVER omit popover annotations on technical terms — every section needs 3+ annotated elements
+14. NEVER place popover z-index at or above modal z-index (popover: 150, modal backdrop: 200, modal: 201)
+15. NEVER omit tabs from deep-dive modals — minimum 2 tabs (Overview + one other)
 
 Full failure catalog: `references/known-anti-patterns.md`
 Motion quality techniques: `references/animation-quality.md`
@@ -161,7 +171,14 @@ Motion quality techniques: `references/animation-quality.md`
 [ ] All CSS classes used in HTML exist in the stylesheet
 [ ] ESC closes modals, Enter/Space toggles cards, all buttons have aria-label
 [ ] Reduced motion toggle works (both CSS media query and manual button)
-[ ] Page renders correctly at 768px and 1440px
+[ ] Page renders correctly at 768px, 1200px, and 1440px
+[ ] Left sidebar collapses to icon rail, right sidebar hides at correct breakpoints
+[ ] Scrollspy highlights active section in right sidebar on scroll
+[ ] Every section has 3+ `.has-popover` annotated elements with title and body
+[ ] Popovers pin on click, dismiss on Escape/click-outside, only one pinned at a time
+[ ] Popover z-index (150) below modal backdrop (200) and modal (201)
+[ ] All deep-dive modals have 2-4 internal tabs (Overview + at least one other)
+[ ] Modal tabs reset to first tab on reopen
 [ ] Expand icons are SVG, not Unicode
 [ ] No orphaned CSS classes or dead JavaScript
 [ ] Values tracking targets use exponential smoothing (lerp), not direct assignment

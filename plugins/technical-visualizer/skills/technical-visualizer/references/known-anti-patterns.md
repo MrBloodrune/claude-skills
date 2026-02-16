@@ -38,9 +38,9 @@ Concrete failures extracted from firmware-architecture-failure-analysis.md. Each
 **Wrong:** Modal content uses `style="font-family:var(--font-mono);font-size:14px;color:var(--text-primary);"`
 **Fix:** All styling via CSS classes — inline styles only for dynamic JS-computed values
 
-### No Intermediate Breakpoint
-**Wrong:** Only 768px breakpoint exists — awkward layout between 769px-1200px
-**Fix:** Add 1024px breakpoint for tablet-sized viewports (sidebar width adjustment)
+### Missing Responsive Breakpoints
+**Wrong:** Only 768px breakpoint exists — awkward layout between 769px-1400px
+**Fix:** Three breakpoints: 1400px (hide right page-toc sidebar), 1200px (collapse left series-nav to hamburger overlay), 768px (mobile stacking). See `references/page-architecture.md` Section 7.
 
 ### Missing Table Scroll Wrapper
 **Wrong:** 11-column truth table overflows on narrow viewports — no horizontal scroll container
@@ -88,7 +88,7 @@ Concrete failures extracted from firmware-architecture-failure-analysis.md. Each
 
 ### No Popovers Anywhere
 **Wrong:** Diagram components have no click/hover popovers — only CSS-only tooltips on packet fields
-**Fix:** Implement popover pattern on block diagram nodes, memory regions, table rows
+**Fix:** Implement the Layer 2 popover system from `references/interaction-patterns.md` Section 6. Every section needs 3+ `.has-popover` annotated elements with `data-popover-title` and `data-popover-body`. Hover shows brief context, click pins with extended content. See interaction-patterns.md for complete CSS, HTML, and JS.
 
 ### No Auto-Play on Animations
 **Wrong:** Ring buffer animation starts IDLE with manual play button — no IntersectionObserver

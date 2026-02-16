@@ -747,3 +747,258 @@ function closeModal() {
 - [ ] Keyboard navigation works: Enter/Space for toggles, Escape for modals
 - [ ] Focus returns to trigger element when modals close
 - [ ] Color contrast meets WCAG AA (4.5:1 for text, 3:1 for UI)
+- [ ] Popovers dismiss on Escape and click-outside
+- [ ] Modal tabs reset to first tab on reopen
+
+---
+
+## 6. Popover System (Layer 2)
+
+Popovers provide hover/click context on interactive elements. Based on Shneiderman's "details on demand" principle and the Chrome DevTools pin pattern. Maximum 3 information layers: visualization (L1) → popover (L2) → modal (L3).
+
+### HTML — Annotating Elements
+
+Add `class="has-popover"` and data attributes to elements that should show popovers:
+
+```html
+<span class="has-popover"
+  data-popover-title="NVS Partition"
+  data-popover-body="<code>0x9000</code> &mdash; 20KB non-volatile storage. Key-value pairs for WiFi credentials and device settings.">
+  NVS (20KB)
+</span>
+```
+
+**Guidelines:**
+- 3-5 popover elements per section (don't over-annotate)
+- `data-popover-body` can contain inline HTML (`<code>`, `<strong>`, `<em>`)
+- Keep body text to 2-3 lines max
+- Target: field names, partition regions, config values, pin names, enum values
+
+### CSS
+
+```css
+.has-popover {
+  border-bottom: 1px dashed var(--text-dim);
+  cursor: help;
+  transition: border-color var(--transition-fast);
+}
+.has-popover:hover { border-color: var(--copper); }
+
+.popover {
+  position: absolute; width: 280px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  padding: 12px 16px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-secondary);
+  z-index: 200;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  opacity: 0; transform: translateY(4px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  pointer-events: none;
+}
+.popover.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.popover.pinned {
+  border-color: var(--copper-dim);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px var(--copper-faint);
+}
+.popover-title { font-weight: 600; color: var(--copper); margin-bottom: 6px; font-size: 12px; }
+.popover-body { line-height: 1.5; }
+.popover-body code { background: var(--bg-primary); padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+.popover-close {
+  position: absolute; top: 8px; right: 8px;
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 14px; display: none;
+}
+.popover.pinned .popover-close { display: block; }
+.popover-pin-hint {
+  font-size: 10px; color: var(--text-dim); margin-top: 8px; font-style: italic;
+}
+.popover.pinned .popover-pin-hint { display: none; }
+```
+
+### JavaScript
+
+```javascript
+let activePopover = null;
+let popoverTimeout = null;
+
+function createPopoverElement() {
+  const el = document.createElement('div');
+  el.className = 'popover';
+  el.innerHTML = `
+    <button class="popover-close" onclick="dismissPopover()" aria-label="Close">&times;</button>
+    <div class="popover-title"></div>
+    <div class="popover-body"></div>
+    <div class="popover-pin-hint">Click to pin</div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+const popoverEl = createPopoverElement();
+
+function positionPopover(target) {
+  const rect = target.getBoundingClientRect();
+  const pw = 280;
+  let left = rect.left + rect.width / 2 - pw / 2;
+  let top = rect.bottom + 8;
+  if (left < 8) left = 8;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (top + 200 > window.innerHeight) top = rect.top - 8 - popoverEl.offsetHeight;
+  popoverEl.style.left = left + 'px';
+  popoverEl.style.top = top + window.scrollY + 'px';
+}
+
+function showPopover(target) {
+  if (activePopover === target && popoverEl.classList.contains('pinned')) return;
+  popoverEl.querySelector('.popover-title').textContent = target.dataset.popoverTitle || '';
+  popoverEl.querySelector('.popover-body').innerHTML = target.dataset.popoverBody || '';
+  popoverEl.classList.remove('pinned');
+  popoverEl.classList.add('visible');
+  positionPopover(target);
+  activePopover = target;
+}
+
+function hidePopover() {
+  if (popoverEl.classList.contains('pinned')) return;
+  popoverEl.classList.remove('visible');
+  activePopover = null;
+}
+
+function pinPopover(target) {
+  if (activePopover && activePopover !== target) popoverEl.classList.remove('pinned', 'visible');
+  showPopover(target);
+  popoverEl.classList.add('pinned');
+}
+
+function dismissPopover() {
+  popoverEl.classList.remove('visible', 'pinned');
+  activePopover = null;
+}
+
+function initPopovers() {
+  document.querySelectorAll('.has-popover').forEach(el => {
+    el.addEventListener('mouseenter', () => { clearTimeout(popoverTimeout); showPopover(el); });
+    el.addEventListener('mouseleave', () => { popoverTimeout = setTimeout(hidePopover, 200); });
+    el.addEventListener('click', e => { e.preventDefault(); pinPopover(el); });
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.popover') && !e.target.closest('.has-popover')) dismissPopover();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') dismissPopover(); });
+  popoverEl.addEventListener('mouseenter', () => clearTimeout(popoverTimeout));
+  popoverEl.addEventListener('mouseleave', () => {
+    if (!popoverEl.classList.contains('pinned')) popoverTimeout = setTimeout(hidePopover, 200);
+  });
+}
+```
+
+Call `initPopovers()` in `init()`.
+
+---
+
+## 7. Tabbed Modals (Layer 3)
+
+Deep-dive modals use internal tabs for structured depth instead of nested dialogs. Based on MDN/Stripe documentation patterns. Each modal has 2-4 tabs — never expand/grow the modal itself.
+
+### HTML — Template Structure
+
+```html
+<template id="section-modal">
+  <div class="modal-tabs">
+    <button class="modal-tab active" data-tab="overview" onclick="switchModalTab(this)">Overview</button>
+    <button class="modal-tab" data-tab="details" onclick="switchModalTab(this)">Details</button>
+    <button class="modal-tab" data-tab="code" onclick="switchModalTab(this)">Code</button>
+  </div>
+  <div class="modal-tab-content active" data-tab="overview">
+    <h4>Topic Overview</h4>
+    <p>Main explanation content...</p>
+  </div>
+  <div class="modal-tab-content" data-tab="details">
+    <h4>Technical Details</h4>
+    <table class="modal-table"><!-- structured data --></table>
+  </div>
+  <div class="modal-tab-content" data-tab="code">
+    <h4>Source References</h4>
+    <ul><li><code>path/to/file.cpp</code> &mdash; description</li></ul>
+  </div>
+</template>
+```
+
+**Tab guidelines:**
+- Minimum 2 tabs, maximum 4
+- Standard tab set: Overview, Details, Code, Related
+- Not every modal needs all tabs — use what's relevant
+- Overview tab contains the existing deep-dive content (migration path)
+- Details tab: tables, config values, thresholds, formulas
+- Code tab: source file paths, function signatures, config struct fields
+- Related tab: cross-references to other sections/pages
+
+### CSS
+
+```css
+.modal-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border-color);
+  margin: -16px -24px 16px; padding: 0 24px;
+}
+.modal-tab {
+  padding: 10px 16px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-dim); background: none; border: none;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+.modal-tab:hover { color: var(--text-secondary); }
+.modal-tab.active { color: var(--copper); border-bottom-color: var(--copper); }
+.modal-tab-content { display: none; }
+.modal-tab-content.active { display: block; }
+
+.modal-table {
+  width: 100%; border-collapse: collapse; margin: 12px 0;
+  font-family: var(--font-mono); font-size: 12px;
+}
+.modal-table th {
+  text-align: left; padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--copper); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.modal-table td {
+  padding: 6px 12px; border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+.modal-table tr:hover td { background: var(--copper-faint); }
+```
+
+### JavaScript
+
+```javascript
+function switchModalTab(btn) {
+  const container = btn.closest('.modal') || btn.closest('.modal-body');
+  if (!container) return;
+  container.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+  container.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  const tabId = btn.dataset.tab;
+  container.querySelector(`.modal-tab-content[data-tab="${tabId}"]`)?.classList.add('active');
+}
+```
+
+Update `openModal()` to reset tab state on open:
+
+```javascript
+function openModal(templateId) {
+  // ... existing clone + show logic ...
+
+  // Reset tabs to first tab
+  const firstTab = modalBody.querySelector('.modal-tab');
+  if (firstTab) {
+    modalBody.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    modalBody.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+    firstTab.classList.add('active');
+    modalBody.querySelector('.modal-tab-content')?.classList.add('active');
+  }
+}
+```

@@ -27,11 +27,11 @@ Complete HTML skeleton showing every required element:
 </head>
 <body>
   <!-- Mobile navigation button - fixed top-left, hidden on desktop -->
-  <button class="mobile-nav-btn" onclick="toggleMobileNav()">☰</button>
+  <button class="mobile-nav-btn" onclick="toggleMobileNav()" aria-label="Open navigation">&#9776;</button>
 
-  <!-- Navigation sidebar - fixed left, collapsible -->
-  <nav class="nav-sidebar" aria-label="Main navigation">
-    <!-- Populated from navigation section -->
+  <!-- Left sidebar: Series navigation (all pages in series) -->
+  <nav class="series-nav" aria-label="Series navigation">
+    <!-- Populated from section 3: series links + motion toggle -->
   </nav>
 
   <!-- Modal system - fixed, hidden by default -->
@@ -78,9 +78,20 @@ Complete HTML skeleton showing every required element:
     </footer>
   </main>
 
-  <!-- Deep dive modal templates - hidden -->
+  <!-- Right sidebar: Page table of contents (auto-populated by JS) -->
+  <aside class="page-toc" aria-label="Page table of contents">
+    <div class="page-toc-header">On This Page</div>
+    <nav class="page-toc-links"></nav>
+  </aside>
+
+  <!-- Deep dive modal templates - hidden, with tabs -->
   <template id="section-modal-id">
-    <!-- Modal content HTML -->
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="overview" onclick="switchModalTab(this)">Overview</button>
+      <button class="modal-tab" data-tab="details" onclick="switchModalTab(this)">Details</button>
+    </div>
+    <div class="modal-tab-content active" data-tab="overview"><!-- Overview content --></div>
+    <div class="modal-tab-content" data-tab="details"><!-- Detail content --></div>
   </template>
 
   <!-- All JavaScript inline in script block -->
@@ -252,239 +263,224 @@ Complete HTML skeleton showing every required element:
 
 ---
 
-## 3. Sidebar Navigation
+## 3. Dual Sidebar Navigation
+
+Pages use a wiki-style dual sidebar layout:
+- **Left sidebar (series nav):** Links to all pages in the series. Shows page numbers and short titles. Current page highlighted. Collapsible to icon rail.
+- **Right sidebar (page TOC):** Auto-populated from section cards on the current page. Scrollspy highlights active section.
+
+For standalone pages (not part of a series), the left sidebar shows section categories (the legacy single-sidebar pattern). For multi-page series, always use the dual sidebar.
 
 ### HTML Structure
 
 ```html
-<nav class="nav-sidebar" aria-label="Main navigation">
-  <!-- Navigation header with title and collapse button -->
-  <div class="nav-header">
-    <div class="nav-title">Guide</div>
-    <button class="nav-collapse-btn" onclick="toggleNavCollapse()" aria-label="Collapse navigation">
-      <span class="nav-collapse-icon">‹</span>
+<!-- Left sidebar: Series Navigation -->
+<nav class="series-nav" aria-label="Series navigation">
+  <div class="series-nav-header">
+    <div class="series-nav-title">Series Title</div>
+    <button class="series-nav-collapse-btn" onclick="toggleSeriesNav()" aria-label="Collapse navigation">
+      <span class="series-nav-collapse-icon">&#8249;</span>
     </button>
   </div>
-
-  <!-- Navigation sections grouped by category -->
-  <div class="nav-sections">
-    <div class="nav-section-label">Category</div>
-    <a href="#section-1" class="nav-link">
-      <span class="nav-icon">■</span>
-      <span class="nav-label">Section Title</span>
+  <div class="series-nav-links">
+    <a href="01-page-name.html" class="series-nav-link active">
+      <span class="series-nav-num">01</span>
+      <span class="series-nav-label">Page Title</span>
     </a>
-    <!-- Repeat links -->
+    <a href="02-page-name.html" class="series-nav-link">
+      <span class="series-nav-num">02</span>
+      <span class="series-nav-label">Page Title</span>
+    </a>
+    <!-- Repeat for all pages in series -->
   </div>
-
-  <!-- Motion toggle control at bottom -->
-  <div class="nav-controls">
-    <button class="motion-toggle" onclick="toggleMotion()">
+  <div class="series-nav-controls">
+    <button class="motion-toggle" onclick="toggleMotion()" aria-label="Toggle motion">
       <span class="motion-indicator"></span>
       <span class="motion-label">Motion</span>
     </button>
   </div>
 </nav>
+
+<!-- Right sidebar: Page Table of Contents (auto-populated by JS) -->
+<aside class="page-toc" aria-label="Page table of contents">
+  <div class="page-toc-header">On This Page</div>
+  <nav class="page-toc-links">
+    <!-- Populated by initPageToc() from .section-card elements -->
+  </nav>
+</aside>
 ```
+
+Place the `<aside class="page-toc">` after `</main>` and before the footer/templates.
 
 ### CSS
 
 ```css
-.nav-sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: var(--nav-width);
+/* Add to :root */
+--series-nav-width: 220px;
+--series-nav-collapsed: 48px;
+--page-toc-width: 180px;
+
+/* Series Nav (left sidebar) */
+.series-nav {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--series-nav-width);
   background: rgba(10,15,26,0.92);
   backdrop-filter: blur(12px);
   border-right: 1px solid rgba(212,146,75,0.15);
-  box-shadow:
-    1px 0 12px rgba(212,146,75,0.06),
-    inset -1px 0 0 rgba(255,255,255,0.04);
+  box-shadow: 1px 0 12px rgba(212,146,75,0.06), inset -1px 0 0 rgba(255,255,255,0.04);
   z-index: var(--z-nav);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
   transition: width var(--transition-med);
 }
+.series-nav.collapsed { width: var(--series-nav-collapsed); }
+.series-nav.collapsed .series-nav-label,
+.series-nav.collapsed .series-nav-title,
+.series-nav.collapsed .motion-label { opacity: 0; pointer-events: none; }
 
-.nav-sidebar.collapsed {
-  width: var(--nav-collapsed);
+.series-nav-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px; border-bottom: 1px solid var(--border-color);
 }
-
-.nav-sidebar.collapsed .nav-label,
-.nav-sidebar.collapsed .nav-section-label,
-.nav-sidebar.collapsed .motion-label {
-  opacity: 0;
-  pointer-events: none;
+.series-nav-title {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; color: var(--copper);
+  white-space: nowrap;
 }
-
-.nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+.series-nav-collapse-btn {
+  width: 24px; height: 24px; border: 1px solid var(--border-color);
+  background: transparent; color: var(--text-secondary); border-radius: 2px;
+  cursor: pointer; transition: all var(--transition-fast); flex-shrink: 0;
 }
+.series-nav-collapse-btn:hover { border-color: var(--copper-dim); color: var(--copper); }
+.series-nav-collapse-icon { display: inline-block; transition: transform var(--transition-med); }
+.series-nav.collapsed .series-nav-collapse-icon { transform: rotate(180deg); }
 
-.nav-title {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--copper);
+.series-nav-links { flex: 1; padding: 12px 0; overflow-y: auto; }
+.series-nav-link {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  color: var(--text-secondary); text-decoration: none;
+  font-family: var(--font-mono); font-size: 12px;
+  border-left: 2px solid transparent;
+  transition: all var(--transition-fast); white-space: nowrap;
 }
-
-.nav-collapse-btn {
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+.series-nav-link:hover {
+  color: var(--copper); background: rgba(212,146,75,0.08);
+  border-left-color: var(--copper-dim);
 }
-
-.nav-collapse-btn:hover {
-  border-color: var(--copper-dim);
-  color: var(--copper);
+.series-nav-link.active {
+  color: var(--copper); background: rgba(212,146,75,0.12);
+  border-left-color: var(--copper);
 }
+.series-nav-num { font-size: 10px; color: var(--text-dim); min-width: 18px; }
+.series-nav-controls { padding: 16px; border-top: 1px solid var(--border-color); }
 
-.nav-sidebar.collapsed .nav-collapse-icon {
-  transform: rotate(180deg);
+/* Page TOC (right sidebar) */
+.page-toc {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: var(--page-toc-width);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  padding-top: 24px;
+  z-index: var(--z-nav);
 }
-
-.nav-sections {
-  flex: 1;
-  padding: 8px 0;
+.page-toc-header {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim);
+  padding: 0 16px 12px; border-bottom: 1px solid var(--border-color);
 }
-
-.nav-section-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--text-dim);
-  padding: 16px 16px 8px;
-  transition: opacity var(--transition-fast);
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: 12px;
+.page-toc-links { padding: 8px 0; }
+.page-toc-link {
+  display: block; padding: 6px 16px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-dim); text-decoration: none;
   border-left: 2px solid transparent;
   transition: all var(--transition-fast);
 }
+.page-toc-link:hover { color: var(--text-secondary); border-left-color: var(--border-color); }
+.page-toc-link.active { color: var(--copper); border-left-color: var(--copper); }
 
-.nav-link:hover {
-  color: var(--copper);
-  background: rgba(212,146,75,0.08);
-  border-left-color: var(--copper-dim);
-}
-
-.nav-link.active {
-  color: var(--copper);
-  background: rgba(212,146,75,0.12);
-  border-left-color: var(--copper);
-}
-
-.nav-icon {
-  flex-shrink: 0;
-  width: 16px;
-  text-align: center;
-  color: var(--copper-dim);
-}
-
-.nav-label {
-  transition: opacity var(--transition-fast);
-}
-
-.nav-controls {
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
+/* Motion toggle (shared) */
 .motion-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 2px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 2px;
+  background: transparent; color: var(--text-secondary);
+  font-family: var(--font-mono); font-size: 11px;
+  cursor: pointer; transition: all var(--transition-fast);
 }
-
-.motion-toggle:hover {
-  border-color: var(--copper-dim);
-}
-
+.motion-toggle:hover { border-color: var(--copper-dim); }
 .motion-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green-glow);
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green-glow);
+}
+body.reduce-motion .motion-indicator {
+  background: var(--red); box-shadow: 0 0 6px var(--red-glow);
 }
 
-body.reduce-motion .motion-indicator {
-  background: var(--red);
-  box-shadow: 0 0 6px var(--red-glow);
+/* Main content offset for both sidebars */
+.main-content {
+  margin-left: var(--series-nav-width);
+  margin-right: var(--page-toc-width);
+  position: relative; z-index: 2;
+  transition: margin var(--transition-med);
 }
+.series-nav.collapsed ~ .main-content { margin-left: var(--series-nav-collapsed); }
 ```
 
 ### JavaScript
 
 ```javascript
-// Scroll tracking for active nav
-function updateActiveNav() {
-  const sections = document.querySelectorAll('.section-card');
-  const scrollPos = window.scrollY + 100;
-
-  sections.forEach(section => {
-    const top = section.offsetTop;
-    const bottom = top + section.offsetHeight;
-    const id = section.getAttribute('id');
-    const link = document.querySelector(`.nav-link[href="#${id}"]`);
-
-    if (scrollPos >= top && scrollPos < bottom) {
-      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-      link?.classList.add('active');
-    }
-  });
-}
-
-window.addEventListener('scroll', updateActiveNav, { passive: true });
-
-// Navigation collapse toggle
-function toggleNavCollapse() {
-  document.querySelector('.nav-sidebar').classList.toggle('collapsed');
+// Series nav collapse
+function toggleSeriesNav() {
+  document.querySelector('.series-nav').classList.toggle('collapsed');
 }
 
 // Mobile menu toggle
 function toggleMobileNav() {
-  document.querySelector('.nav-sidebar').classList.toggle('mobile-open');
+  document.querySelector('.series-nav').classList.toggle('mobile-open');
+}
+
+// Auto-populate page TOC from section cards
+function initPageToc() {
+  const toc = document.querySelector('.page-toc-links');
+  if (!toc) return;
+  const cards = document.querySelectorAll('.section-card');
+  cards.forEach(card => {
+    const title = card.querySelector('.card-title')?.textContent;
+    if (!title) return;
+    const link = document.createElement('a');
+    link.href = '#' + card.id;
+    link.className = 'page-toc-link';
+    link.textContent = title;
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      card.scrollIntoView({ behavior: motionReduced ? 'auto' : 'smooth' });
+    });
+    toc.appendChild(link);
+  });
+}
+
+// Scrollspy for page TOC
+function initScrollspy() {
+  const tocLinks = document.querySelectorAll('.page-toc-link');
+  if (!tocLinks.length) return;
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.page-toc-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -75% 0px', threshold: 0 });
+  document.querySelectorAll('.section-card').forEach(card => observer.observe(card));
 }
 
 // Close mobile nav when clicking link
-document.querySelectorAll('.nav-link').forEach(link => {
+document.querySelectorAll('.series-nav-link').forEach(link => {
   link.addEventListener('click', () => {
-    if (window.innerWidth <= 768) {
-      document.querySelector('.nav-sidebar').classList.remove('mobile-open');
+    if (window.innerWidth <= 1200) {
+      document.querySelector('.series-nav').classList.remove('mobile-open');
     }
   });
 });
@@ -935,64 +931,35 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 ## 7. Responsive Design
 
-### Mobile Breakpoint (768px)
+### Three Breakpoints
 
 ```css
-@media (max-width: 768px) {
-  /* Sidebar slides in from left */
-  .nav-sidebar {
+/* Hide right sidebar on medium screens */
+@media (max-width: 1400px) {
+  .page-toc { display: none; }
+  .main-content { margin-right: 0; }
+}
+
+/* Collapse left sidebar to hamburger on narrow screens */
+@media (max-width: 1200px) {
+  .series-nav {
     transform: translateX(-100%);
-    width: var(--nav-width);
+    width: var(--series-nav-width);
   }
+  .series-nav.mobile-open { transform: translateX(0); }
+  .main-content { margin-left: 0 !important; margin-right: 0; }
+  .mobile-nav-btn { display: flex !important; }
+}
 
-  .nav-sidebar.mobile-open {
-    transform: translateX(0);
-  }
-
-  /* Main content full width */
-  .main-content {
-    margin-left: 0 !important;
-  }
-
-  /* Show mobile nav button */
-  .mobile-nav-btn {
-    display: flex !important;
-  }
-
-  /* Reduce hero padding */
-  .hero {
-    padding: 60px 24px 48px;
-  }
-
-  /* Stack hero stats */
-  .hero-stats {
-    gap: 32px;
-  }
-
-  /* Reduce container padding */
-  .sections-container {
-    padding: 24px 16px 48px;
-  }
-
-  /* Tighter card spacing */
-  .card-header {
-    padding: 16px;
-  }
-
-  .card-content {
-    padding: 0 16px 24px;
-  }
-
-  /* Smaller visualization labels */
-  .viz-label {
-    font-size: 10px;
-  }
-
-  /* Modal adjustments */
-  .modal {
-    width: min(720px, 95vw);
-    max-height: 90vh;
-  }
+/* Mobile layout adjustments */
+@media (max-width: 768px) {
+  .hero { padding: 60px 24px 48px; }
+  .hero-stats { gap: 32px; }
+  .sections-container { padding: 24px 16px 48px; }
+  .card-header { padding: 16px; }
+  .card-content { padding: 0 16px 24px; }
+  .viz-label { font-size: 10px; }
+  .modal { width: min(720px, 95vw); max-height: 90vh; }
 }
 ```
 
@@ -1162,9 +1129,9 @@ function init() {
     vizObserver.observe(container);
   });
 
-  // Set up scroll tracking
-  updateActiveNav();
-  window.addEventListener('scroll', updateActiveNav, { passive: true });
+  // Set up page TOC and scrollspy
+  initPageToc();
+  initScrollspy();
 
   // Resize handler for canvas/SVG elements
   window.addEventListener('resize', () => {
