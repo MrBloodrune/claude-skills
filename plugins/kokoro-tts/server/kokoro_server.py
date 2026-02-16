@@ -16,6 +16,7 @@ import re
 import sys
 import threading
 import unicodedata
+import wave
 
 import numpy as np
 import sounddevice as sd
@@ -245,6 +246,55 @@ class KokoroServer:
             "sessions_cancelled": len(sessions),
         })
 
+    async def handle_play_sound(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid json"}, status=400)
+
+        sound = data.get("sound", "").strip()
+        valid_sounds = {"working", "done", "attention", "error"}
+        if sound not in valid_sounds:
+            return web.json_response(
+                {"error": f"invalid sound, must be one of: {', '.join(sorted(valid_sounds))}"},
+                status=400,
+            )
+
+        session_id = data.get("session_id", "default")
+        volume = float(data.get("volume", 1.0))
+
+        assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
+        wav_path = os.path.join(assets_dir, f"{sound}.wav")
+
+        if not os.path.isfile(wav_path):
+            return web.json_response({"error": f"asset not found: {sound}.wav"}, status=404)
+
+        with wave.open(wav_path, "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            sr = wf.getframerate()
+
+        if volume != 1.0:
+            samples = samples * volume
+
+        self._cancel_session(session_id)
+        cancel = threading.Event()
+        self.cancel_events[session_id] = cancel
+        executor = self._get_audio_executor()
+        loop = asyncio.get_event_loop()
+
+        async def _play():
+            try:
+                await loop.run_in_executor(executor, play_samples_interruptible, samples, sr, cancel)
+            finally:
+                self.active_playbacks.pop(session_id, None)
+                self.cancel_events.pop(session_id, None)
+
+        task = asyncio.create_task(_play())
+        self.active_playbacks[session_id] = task
+
+        return web.json_response({"status": "playing", "sound": sound, "session_id": session_id})
+
     async def handle_health(self, request: web.Request) -> web.Response:
         active = {k: not v.done() for k, v in self.active_playbacks.items()}
         return web.json_response({
@@ -279,6 +329,7 @@ def main():
     app.router.add_post("/interrupt-all", server.handle_interrupt_all)
     app.router.add_post("/cleanup", server.handle_cleanup)
     app.router.add_get("/health", server.handle_health)
+    app.router.add_post("/play-sound", server.handle_play_sound)
 
     log.info("Starting Kokoro TTS server on 127.0.0.1:%d", port)
     web.run_app(app, host="127.0.0.1", port=port, print=None)
