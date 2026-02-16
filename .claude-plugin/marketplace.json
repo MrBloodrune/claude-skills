@@ -142,9 +142,9 @@
       "strict": false
     },
     {
-      "name": "tmux-sessions",
-      "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with file-based event notifications",
-      "source": "./plugins/tmux-sessions",
+      "name": "use-tmux",
+      "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with adaptive pane-based monitoring",
+      "source": "./plugins/use-tmux",
       "strict": false
     },
     {

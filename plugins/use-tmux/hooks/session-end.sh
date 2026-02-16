@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# tmux-sessions: Clean up session registration on exit.
+# use-tmux: Clean up session registration on exit.
 
 [ -z "${TMUX:-}" ] && exit 0
 

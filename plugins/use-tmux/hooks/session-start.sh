@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# tmux-sessions: Register this Claude session if running inside tmux.
+# use-tmux: Register this Claude session if running inside tmux.
 # No-op if $TMUX is unset. Writes session metadata to ~/.claude/tmux-sessions/.
 
 [ -z "${TMUX:-}" ] && exit 0
