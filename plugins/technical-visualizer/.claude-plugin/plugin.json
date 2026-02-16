@@ -1,6 +1,6 @@
 {
   "name": "technical-visualizer",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Interactive educational visualization builder for technical topics. Pattern-catalog skill with 15 visualization patterns, PCB schematic aesthetic, and codified implementation rules for uniform, combinable output.",
   "author": { "name": "MrBloodrune" },
   "repository": "https://github.com/MrBloodrune/claude-skills",
