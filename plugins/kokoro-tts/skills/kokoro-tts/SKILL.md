@@ -16,7 +16,7 @@ The voice channel is the **primary engagement interface**. The user is listening
 
 ## TTS_RESPONSE Format
 
-Every response MUST end with a `TTS_RESPONSE` block. No exceptions -- even for silent responses. If you omit it, the hook plays a fallback coin sound (broken response).
+Every response MUST end with a `TTS_RESPONSE` block. No exceptions -- even for silent responses. A missing TTS_RESPONSE block triggers the error sound (not speech).
 
 ### Speech (spoken aloud)
 
@@ -50,20 +50,26 @@ TTS_RESPONSE -->
 
 ## Choosing a Weight
 
-Follow this decision tree for every response:
+Use this table. Find the situation that matches, use that weight.
 
-1. **Is there something the user needs to hear?** (question, result, explanation, error) -> `speech`
-2. **Did a task or step just complete?** -> `sound:done`
-3. **Does the user need to act or look at something?** -> `sound:attention`
-4. **Are you mid-iteration and just acknowledging a tool result?** -> `sound:working`
-5. **Is this a tool-heavy loop where audio would pile up?** -> `silent`
+| Situation | Weight | Speech example |
+|-----------|--------|----------------|
+| Reading files, grepping, globbing | `silent` | -- |
+| Mid-loop between tool calls, no conclusion yet | `silent` | -- |
+| File written or edited | `sound:done` | -- |
+| Task step completed, nothing to report | `sound:done` | -- |
+| Search completed, found what was needed | `sound:done` | -- |
+| Web search or web fetch initiated | `speech` | "Searching for the latest docs on that." |
+| Sub-agent dispatched | `speech` | "Dispatching an agent to review the tests." |
+| Task completed with results to report | `speech` | "Done. Found three issues, details in the text." |
+| Error, blocker, or unexpected failure | `speech` | "Hit a permission error on that container." |
+| Asking the user a question | `speech` | The question itself |
+| Answering a user question | `speech` | The answer |
+| Greeting or casual exchange | `speech` | Natural response |
+| Background task finished | `sound:done` | -- |
+| Plan presented for approval | `speech` | "Plan's ready for your review." |
 
-### Self-Adjustment Rules
-
-- During tool-heavy iteration loops (multiple tool calls before a real conclusion): use `sound:working` or `silent`
-- Background or stacked task completions: cap at `sound:done` regardless of mode
-- When uncertain between two weights: pick the lower one
-- The AI can always drop below the ceiling -- never rise above it
+If your situation isn't listed, pick the closest match. When uncertain between two weights, pick the lower one.
 
 ## Verbosity Modes
 
@@ -111,51 +117,55 @@ These apply only when `weight="speech"`:
 
 ## Examples
 
-### Good
+### Workflow: Bug investigation
 
+User asks to investigate a bug.
+
+1. Read 4 source files -> `silent` (x4, mid-loop exploration)
+2. Find the root cause, explain it -> `speech`: "Found it. There's a race condition in the session handler."
+
+### Workflow: Refactor
+
+User asks to refactor a function.
+
+1. Read the file -> `silent`
+2. Edit the function -> `sound:done`
+3. Run tests -> `silent` (waiting for results)
+4. Tests pass, report back -> `speech`: "Refactored and tests pass."
+
+### Workflow: Research with sub-agent
+
+User asks to search for something broad.
+
+1. Dispatch explore agent -> `speech`: "Dispatching an agent to search the codebase."
+2. Agent returns, summarize findings -> `speech`: "Found it in three files, details below."
+
+### Workflow: Multi-file edit
+
+User asks to rename a variable across files.
+
+1. Edit file A -> `sound:done`
+2. Edit file B -> `sound:done`
+3. Edit file C -> `sound:done`
+4. All done, confirm -> `speech`: "Renamed across all three files."
+
+### Format reference
+
+Speech:
 ```
 <!-- TTS_RESPONSE weight="speech"
 Done. The backup job is pinned to the correct node now.
 TTS_RESPONSE -->
 ```
 
+Sound:
 ```
 <!-- TTS_RESPONSE weight="sound:done" -->
 ```
 
-```
-<!-- TTS_RESPONSE weight="sound:working" -->
-```
-
+Silent:
 ```
 <!-- TTS_RESPONSE weight="silent" -->
-```
-
-```
-<!-- TTS_RESPONSE weight="speech"
-I found three containers over their memory limit and one with a stale mount. Details are in the text.
-TTS_RESPONSE -->
-```
-
-### Bad
-
-Speech with technical content:
-```
-<!-- TTS_RESPONSE weight="speech"
-I updated /etc/sysctl.d/99-network-perf.conf to set net.core.rmem_max to 16777216.
-TTS_RESPONSE -->
-```
-
-Speech with unicode (causes garbled audio):
-```
-<!-- TTS_RESPONSE weight="speech"
-Done — the config is updated.
-TTS_RESPONSE -->
-```
-
-Missing block entirely (causes coin fallback -- broken):
-```
-(no TTS_RESPONSE block)
 ```
 
 ## Backward Compatibility
