@@ -3,7 +3,7 @@ name: use-tmux
 description: This skill should be used when the user asks to "run this in tmux", "launch a separate session", "dispatch to tmux", "parallel session in tmux", "spawn a tmux session", "check tmux", "tmux status", "tmux progress", "what's happening in tmux", or wants to delegate work to or monitor Claude sessions running in tmux.
 ---
 
-# tmux-dispatch
+# Session Operator Guide
 
 ## Purpose & Ownership Model
 
