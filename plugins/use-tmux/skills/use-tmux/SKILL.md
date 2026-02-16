@@ -1,6 +1,6 @@
 ---
 name: use-tmux
-description: This skill should be used when the user asks to "run this in tmux", "launch a separate session", "dispatch to tmux", "parallel session in tmux", "spawn a tmux session", "check tmux", "session status", "is it done", "tmux progress", "what's happening in tmux", or wants to delegate work to or monitor Claude sessions running in tmux.
+description: This skill should be used when the user asks to "run this in tmux", "launch a separate session", "dispatch to tmux", "parallel session in tmux", "spawn a tmux session", "check tmux", "tmux status", "tmux progress", "what's happening in tmux", or wants to delegate work to or monitor Claude sessions running in tmux.
 ---
 
 # tmux-dispatch
@@ -11,18 +11,18 @@ Delegate long-running tasks (implementation plans, large refactors, multi-file m
 
 **The child session owns all file operations.** Once you dispatch a task, the parent session must NOT read, write, or edit any files the child might be working on. Two sessions touching the same files causes conflicts -- edits overwrite each other, reads see stale state, and both sessions make bad decisions based on wrong data.
 
-**Parent session role: dispatch and monitor only.**
-- Launch the child, send it a prompt, then hands off.
-- Monitor progress by capturing pane output at adaptive intervals.
-- Detect completion, stalls, and failures through pane content analysis.
-- Only after the child is done should you inspect results, review changes, or take further action on those files.
+**You are the session operator, workflow manager, and validator.** You own the full lifecycle -- launch, monitor, intervene, and verify. The child owns file operations; you own the outcome. Your job is not just keeping the session alive, but ensuring the dispatched work reaches completion.
+
+- **Operator**: Create the session, deliver the prompt, handle stalls, accept suggestions, send follow-ups. You actively drive the child toward completing its task.
+- **Observer**: Monitor progress through pane capture. You are file-read-only while the child runs -- never touch project files, but you can and should interact with the child session, research abnormalities, converse with the user, and dispatch read-only subagents.
+- **Validator**: After completion, verify the work matches the plan. Dispatch read-only subagents to review changes and document deviations.
 
 **Architecture:**
-- **Parent session**: Your current Claude session (not in tmux). Dispatches, monitors via pane capture, and reviews after completion.
+- **Parent session**: Your current Claude session (not in tmux). Operates, observes, and validates.
 - **Child session**: Claude running inside tmux in a separate Kitty window. Owns all file operations until it finishes.
-- **Communication**: Direct pane capture (`tmux capture-pane`). The parent reads the child's terminal output on each check cycle. No filesystem intermediaries, no sentinel files, no event logs.
+- **Communication**: Direct pane capture (`tmux capture-pane`) and `send-keys` / `paste-buffer` for interaction. No filesystem intermediaries, no sentinel files, no event logs.
 
-There is **no automatic callback** into the parent session. You must actively capture pane output to track progress.
+There is **no automatic callback** into the parent session. You must actively capture pane output to track progress and intervene when needed to keep the work moving.
 
 **Do NOT:**
 - Read project files "to check how it's going" -- use pane capture instead.
@@ -115,7 +115,7 @@ Run this with `run_in_background: true` on the Bash tool. When the background ta
 
 ## Active Monitoring (Phase 2)
 
-The parent continuously monitors using discrete one-shot background checks. Each check is a fresh decision point -- you reason about what the child is doing and decide when to check again.
+Once dispatched, you shift to observer mode -- file-read-only, but actively managing the workflow. Monitor using discrete one-shot background captures. Each check is a decision point: is the child making progress toward completing the dispatched work? You may research abnormalities, interact with the user, dispatch read-only subagents, and intervene in the child session (nudges, suggestion acceptance, follow-up prompts) -- but you must not touch project files.
 
 ### The monitoring cycle
 
@@ -224,7 +224,7 @@ If no Claude process is found and a shell prompt is visible, the child is done.
 
 ### Post-completion validation
 
-Launch a **code-reviewer subagent** to verify the work. The subagent compares what was actually done against the original prompt/plan that was dispatched.
+Shift to validator mode. Your responsibility is confirming the dispatched work was completed as intended -- not just that the session exited cleanly. Launch a **read-only code-reviewer subagent** to compare what was actually done against the original plan. The subagent must not modify files -- it reports completions, gaps, and deviations with rationale.
 
 Use the `Task` tool with `subagent_type: "superpowers:code-reviewer"` and provide it:
 
