@@ -73,6 +73,7 @@ Read `references/page-architecture.md`. Generate:
 ### Step 3: Content and Visualizations
 
 Read `references/pattern-catalog.md` for each selected pattern's implementation.
+Read `references/animation-quality.md` for motion smoothing techniques — exponential smoothing, progressive reveal, probabilistic spawning, CSS transition tiers, and GPU compositing rules.
 Read `references/interaction-patterns.md` for modals, controls, and accessibility specs.
 
 For each section card, generate:
@@ -111,9 +112,12 @@ Open it in a browser to see exactly what the output should look like. When in do
 
 ### Animation
 - **Continuous motion:** `requestAnimationFrame` with delta-time: `(timestamp - lastTime) / 1000 * speed`. NEVER `setTimeout` for continuous movement.
-- **Discrete state machines:** `setTimeout` is correct for FSM transitions, lock cycles, ring buffer steps. Must check `motionReduced` flag.
+- **Discrete state machines:** `setTimeout` is correct for FSM transitions, lock cycles, ring buffer steps. Must check `motionReduced` flag. Always add random jitter: `base + Math.random() * range`.
 - **Interactive patterns:** Click/hover driven, no animation loop needed.
 - **Frame independence:** Always use delta-time. Never count frames.
+- **Smoothing:** Values tracking targets must use exponential smoothing: `current += (target - current) * Math.min(1, dt * factor)`. See `references/animation-quality.md`.
+- **State visuals:** All visual state changes use CSS transitions at the correct tier (fast 150ms / med 300ms / slow 500ms). Never animate colors, backgrounds, or borders in rAF loops — use class toggles.
+- **Progressive reveal:** Elements ahead of a playhead start dimmed (opacity 0.2–0.4) and transition to full opacity via CSS when the cursor passes.
 
 ### Lifecycle
 - `IntersectionObserver` (threshold 0.1) starts/stops all animations on viewport enter/exit.
@@ -145,6 +149,7 @@ State vars: `[name]AnimId`, `[name]LastTime`, `[name]Playing`.
 10. NEVER write JavaScript targeting DOM elements from another section's chunk
 
 Full failure catalog: `references/known-anti-patterns.md`
+Motion quality techniques: `references/animation-quality.md`
 
 ## Before Shipping
 
@@ -159,4 +164,9 @@ Full failure catalog: `references/known-anti-patterns.md`
 [ ] Page renders correctly at 768px and 1440px
 [ ] Expand icons are SVG, not Unicode
 [ ] No orphaned CSS classes or dead JavaScript
+[ ] Values tracking targets use exponential smoothing (lerp), not direct assignment
+[ ] CSS transitions on all state-change visuals (correct tier: fast/med/slow)
+[ ] setTimeout discrete patterns have random jitter (base + Math.random() * range)
+[ ] Canvas 2D uses 2x resolution for HiDPI displays
+[ ] Progressive reveal: unreached elements dimmed, not hidden
 ```
