@@ -1,11 +1,15 @@
 ---
 name: Technical Visualizer
 description: >-
-  Trigger on "educational website", "interactive guide", "technical visualization",
-  "interactive tutorial", "visualization page", "visual explainer", "animated diagram",
-  "educational page", "technical education". Creates single-file interactive HTML pages
-  with animated visualizations for technical topics. Uses PCB schematic aesthetic with
-  15 reusable visualization patterns.
+  This skill should be used when the user asks to create an interactive
+  visualization, technical explainer page, animated diagram, or educational
+  guide for a technical topic. Common requests include "visualize how SPI
+  works", "create an interactive guide to memory layout", "build an animated
+  explainer for task scheduling", "make a technical visualization of BLE
+  packets". Produces a single self-contained HTML file with animated
+  visualizations, interactive controls, PCB schematic aesthetic, sidebar
+  navigation, and deep-dive modals. Supports 15 visualization patterns
+  across timing, state, structural, and data categories.
 ---
 
 # Technical Visualizer

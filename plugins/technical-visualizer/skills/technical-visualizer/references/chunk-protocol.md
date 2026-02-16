@@ -65,7 +65,7 @@ This protocol defines how to split large visualization pages across multiple res
 
 **Variable Usage:**
 - Reference CSS variables: `var(--primary-600)`, not `#3b82f6`
-- Maintain variable naming consistency with design-system.md
+- Maintain variable naming consistency with theme-system.md
 - No hardcoded colors, spacing, or timing values
 
 **Template Elements:**
@@ -154,6 +154,4 @@ JavaScript (N+2):
 ## Version Control
 
 After multi-chunk generation:
-- Bump patch version in skills.json if fixes applied
-- Update page-manifest.json with final line count
-- Document chunk count in commit message
+- Document chunk count and total line count in a comment at the top of the HTML file

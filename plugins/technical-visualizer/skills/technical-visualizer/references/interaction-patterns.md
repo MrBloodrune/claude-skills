@@ -21,7 +21,11 @@ Complete interaction patterns extracted from the ESP32 Peripherals Guide. All pa
       <h2 class="card-title">Pattern Name</h2>
       <p class="card-summary">Brief description of the pattern.</p>
     </div>
-    <div class="card-expand-icon">&#9654;</div>
+    <div class="card-expand-icon">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+        <path d="M3 1l7 5-7 5V1z"/>
+      </svg>
+    </div>
   </div>
   <div class="card-body" id="body-section-id">
     <div class="card-content">
@@ -45,8 +49,9 @@ Complete interaction patterns extracted from the ESP32 Peripherals Guide. All pa
 
 .card-expand-icon {
   transition: transform 300ms ease;
-  font-size: 14px;
   color: var(--copper-dim);
+  display: flex;
+  align-items: center;
 }
 
 .section-card.expanded .card-expand-icon {
@@ -168,9 +173,9 @@ document.addEventListener('click', (e) => {
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal-titlebar">
     <div class="modal-dots">
-      <span style="background: var(--red);"></span>
-      <span style="background: var(--copper);"></span>
-      <span style="background: var(--green);"></span>
+      <span class="dot-close"></span>
+      <span class="dot-min"></span>
+      <span class="dot-max"></span>
     </div>
     <span class="modal-title-text" id="modalTitle">Deep Dive</span>
     <button class="modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
@@ -253,6 +258,10 @@ document.addEventListener('click', (e) => {
   border-radius: 50%;
   display: block;
 }
+
+.dot-close { background: var(--red); }
+.dot-min { background: var(--copper); }
+.dot-max { background: var(--green); }
 
 .modal-title-text {
   flex: 1;
