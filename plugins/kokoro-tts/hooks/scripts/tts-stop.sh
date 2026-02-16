@@ -44,7 +44,11 @@ session_id=$(echo "$transcript_path" | md5sum | awk '{print $1}')
 # Health check
 if ! curl -sf --max-time 1 "$SERVER/health" >/dev/null 2>&1; then
   echo "[$(date)] ERROR: Kokoro server not responding" >> "$LOG"
-  curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"error\",\"session_id\":\"health-check\"}" >/dev/null 2>&1 &
+  # Output hook message -- server is down, can't play sounds through it
+  PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}"
+  cat <<EOF
+{"hookResponse": {"message": "Kokoro TTS server is not responding on port $PORT.\n\nCheck: curl $SERVER/health\nRestart: nohup uv run --project $PLUGIN_DIR/server python $PLUGIN_DIR/server/kokoro_server.py >> /tmp/kokoro-hook.log 2>&1 &"}}
+EOF
   exit 0
 fi
 
