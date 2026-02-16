@@ -146,6 +146,12 @@
       "description": "Spawn, manage, and monitor interactive Claude sessions in tmux with file-based event notifications",
       "source": "./plugins/tmux-sessions",
       "strict": false
+    },
+    {
+      "name": "technical-visualizer",
+      "description": "Interactive educational visualization builder for technical topics with 15 patterns and PCB schematic aesthetic",
+      "source": "./plugins/technical-visualizer",
+      "strict": false
     }
   ]
 }
