@@ -1,0 +1,19 @@
+{
+  "description": "Available domain skills for worker dispatch. Add entries here when installing new domain skill plugins.",
+  "skills": [
+    {
+      "name": "technical-visualizer",
+      "plugin": "technical-visualizer",
+      "type": "build",
+      "output": "html",
+      "description": "Interactive HTML visualizations for technical concepts with PCB schematic aesthetic, 15 visualization patterns"
+    },
+    {
+      "name": "frontend-design",
+      "plugin": "frontend-design",
+      "type": "build",
+      "output": "html",
+      "description": "Production-grade frontend interfaces with high design quality, supports multi-page sites with index.html"
+    }
+  ]
+}
