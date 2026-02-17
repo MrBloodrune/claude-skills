@@ -118,9 +118,9 @@
       "strict": false
     },
     {
-      "name": "agent-scry",
-      "description": "Real-time observation dashboard for Claude Code agent swarms with timeline, Sankey flow, and live stats panels",
-      "source": "./plugins/agent-scry",
+      "name": "ai-scry",
+      "description": "Agent telemetry exporter for Claude Code — captures hook events as OTLP logs to Alloy/Loki/Grafana",
+      "source": "./plugins/ai-scry",
       "strict": false
     },
     {

@@ -1,0 +1,15 @@
+# Screenshots and images dumped in root
+*.png
+*.jpeg
+*.jpg
+*.html
+
+# Playwright MCP
+.playwright-mcp/
+
+# Python
+__pycache__/
+*.pyc
+
+# Session captures
+session-capture-*/

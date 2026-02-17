@@ -1,49 +1,6 @@
 {
   "name": "ai-scry",
   "description": "Agent telemetry exporter for Claude Code — captures hook events as OTLP logs to Alloy/Loki/Grafana",
-  "version": "1.0.0",
-  "hooks": {
-    "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js session_start", "timeout": 5 }] }
-    ],
-    "PreToolUse": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js tool_start", "timeout": 5 }] }
-    ],
-    "PostToolUse": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js tool_end", "timeout": 5 }] }
-    ],
-    "PostToolUseFailure": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js tool_error", "timeout": 5 }] }
-    ],
-    "SubagentStart": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js agent_start", "timeout": 5 }] }
-    ],
-    "SubagentStop": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js agent_complete", "timeout": 5 }] }
-    ],
-    "PreCompact": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js compaction", "timeout": 5 }] }
-    ],
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js user_prompt", "timeout": 5 }] }
-    ],
-    "Stop": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js agent_stop", "timeout": 5 }] }
-    ],
-    "PermissionRequest": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js permission_request", "timeout": 5 }] }
-    ],
-    "Notification": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js notification", "timeout": 5 }] }
-    ],
-    "TaskCompleted": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js task_completed", "timeout": 5 }] }
-    ],
-    "TeammateIdle": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js teammate_idle", "timeout": 5 }] }
-    ],
-    "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/server/exporter.js session_end", "timeout": 5 }] }
-    ]
-  }
+  "version": "1.0.1",
+  "hooks": "./hooks/hooks.json"
 }
