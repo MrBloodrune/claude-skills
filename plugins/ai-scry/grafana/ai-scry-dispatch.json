@@ -16,7 +16,11 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    { "title": "Dispatch", "url": "/d/ai-scry-dispatch/", "type": "link", "icon": "bolt" },
+    { "title": "Sessions", "url": "/d/ai-scry-sessions/", "type": "link", "icon": "list-ul" },
+    { "title": "Prompts", "url": "/d/ai-scry-prompts/", "type": "link", "icon": "comment-alt" }
+  ],
   "liveNow": true,
   "panels": [
     {
