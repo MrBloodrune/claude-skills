@@ -11,10 +11,11 @@ const BASE_DIR = join(HOME, '.claude', 'observatory');
 const SESSIONS_DIR = join(BASE_DIR, 'sessions');
 const PENDING_DIR = join(BASE_DIR, 'pending');
 const RESOLVED_DIR = join(BASE_DIR, 'resolved');
+const PROMPT_DIR = join(BASE_DIR, 'prompts');
 const ALLOY_HOST = process.env.ALLOY_HOST || '127.0.0.1';
 const ALLOY_PORT = parseInt(process.env.ALLOY_PORT || '4318', 10);
 
-[PENDING_DIR, RESOLVED_DIR, SESSIONS_DIR].forEach(d => mkdirSync(d, { recursive: true }));
+[PENDING_DIR, RESOLVED_DIR, SESSIONS_DIR, PROMPT_DIR].forEach(d => mkdirSync(d, { recursive: true }));
 
 const eventType = process.argv[2];
 if (!eventType) process.exit(1);
@@ -30,6 +31,82 @@ process.stdin.on('end', () => {
 
 const hash = (str) => createHash('sha256').update(str).digest('hex').slice(0, 12);
 
+// --- Prompt Attribution State ---
+
+function writeCurrentPrompt(sessionId, promptId, timestamp) {
+  const file = join(PROMPT_DIR, `${sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
+  writeFileSync(file, JSON.stringify({ prompt_id: promptId, timestamp }));
+}
+
+function readCurrentPrompt(sessionId) {
+  const file = join(PROMPT_DIR, `${sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
+  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+// --- Transcript Response Extraction ---
+
+async function extractLastResponse(transcriptPath) {
+  if (!transcriptPath || !existsSync(transcriptPath + '.jsonl')) return null;
+  const fullPath = transcriptPath + '.jsonl';
+  const textParts = [];
+  const toolCalls = [];
+  let lastModel = null;
+  let lastUsage = null;
+  let lastStopReason = null;
+  let lastUserLine = -1;
+  let lineNum = 0;
+
+  const rl = createInterface({ input: createReadStream(fullPath, 'utf8'), crlfDelay: Infinity });
+  // Track all lines to find last user→assistant boundary
+  const lines = [];
+  for await (const line of rl) {
+    let obj;
+    try { obj = JSON.parse(line); } catch { lineNum++; continue; }
+    lines.push(obj);
+    if (obj.type === 'user' && !obj.isMeta) lastUserLine = lines.length - 1;
+    lineNum++;
+  }
+
+  if (lastUserLine < 0) return null;
+
+  // Walk from last user message to end, collecting assistant content
+  for (let i = lastUserLine + 1; i < lines.length; i++) {
+    const obj = lines[i];
+    if (obj.type === 'user' && !obj.isMeta) break; // next user turn
+    if (obj.type !== 'assistant') continue;
+    const msg = obj.message || {};
+    if (msg.model) lastModel = msg.model;
+    if (msg.usage) lastUsage = msg.usage;
+    if (msg.stop_reason) lastStopReason = msg.stop_reason;
+    const content = msg.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block.type === 'text' && block.text?.trim()) {
+        textParts.push(block.text);
+      } else if (block.type === 'tool_use') {
+        toolCalls.push(block.name || 'unknown');
+      }
+    }
+  }
+
+  if (!textParts.length && !toolCalls.length) return null;
+
+  const fullText = textParts.join('\n');
+  return {
+    response_text: fullText,
+    response_summary: fullText.slice(0, 200).replace(/\n/g, ' '),
+    response_length: fullText.length,
+    tool_calls: toolCalls,
+    tool_call_count: toolCalls.length,
+    has_code: fullText.includes('```'),
+    model: lastModel,
+    tokens_in: lastUsage?.input_tokens || 0,
+    tokens_out: lastUsage?.output_tokens || 0,
+    cache_read: lastUsage?.cache_read_input_tokens || 0,
+    stop_reason: lastStopReason,
+  };
+}
+
 function buildEvent(payload) {
   const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || `ses_${Date.now()}`;
   const now = Date.now();
@@ -40,27 +117,41 @@ function buildEvent(payload) {
     session_id: sessionId,
     event_type: eventType,
     timestamp: now,
+    permission_mode: payload.permission_mode || null,
   };
+
+  // Prompt attribution — tag every event with the current prompt
+  if (eventType === 'user_prompt') {
+    // This IS the prompt — write state, self-reference
+    event.triggered_by_prompt_id = event.id;
+  } else {
+    const currentPrompt = readCurrentPrompt(sessionId);
+    if (currentPrompt) event.triggered_by_prompt_id = currentPrompt.prompt_id;
+  }
 
   if (eventType === 'session_start') {
     return Object.assign(event, { agent_id: 'ag_main', agent_label: 'main', transcript_path: payload.transcript_path || null, model: payload.model || null, cwd: payload.cwd || null, source: payload.source || null });
   }
   if (eventType === 'compaction') {
-    return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto', cwd: payload.cwd || null });
+    return Object.assign(event, { agent_id: 'ag_main', trigger: payload.trigger || 'auto', custom_instructions: payload.custom_instructions || null, cwd: payload.cwd || null });
   }
   if (eventType === 'session_end') { event.agent_id = 'ag_main'; event.cwd = payload.cwd || null; event.reason = payload.reason || null; return event; }
 
   if (eventType === 'user_prompt') {
-    return Object.assign(event, {
+    Object.assign(event, {
       agent_id: 'ag_main',
       prompt_text: payload.prompt || '',
       cwd: payload.cwd || null,
     });
+    // Write prompt state AFTER building event so we have the event.id
+    writeCurrentPrompt(sessionId, event.id, now);
+    return event;
   }
   if (eventType === 'agent_stop') {
     return Object.assign(event, {
       agent_id: 'ag_main',
       stop_hook_active: payload.stop_hook_active || false,
+      transcript_path: payload.transcript_path || null,
       cwd: payload.cwd || null,
     });
   }
@@ -89,13 +180,13 @@ function buildEvent(payload) {
     });
   }
   if (eventType === 'notification') {
-    return Object.assign(event, { agent_id: 'ag_main', cwd: payload.cwd || null });
+    return Object.assign(event, { agent_id: 'ag_main', notification_type: payload.notification_type || null, message: typeof payload.message === 'string' ? payload.message.slice(0, 500) : null, title: payload.title || null, cwd: payload.cwd || null });
   }
   if (eventType === 'task_completed') {
-    return Object.assign(event, { agent_id: 'ag_main', cwd: payload.cwd || null });
+    return Object.assign(event, { agent_id: 'ag_main', task_id: payload.task_id || null, task_subject: payload.task_subject || null, task_description: payload.task_description || null, cwd: payload.cwd || null });
   }
   if (eventType === 'teammate_idle') {
-    return Object.assign(event, { agent_id: payload.agent_id || 'ag_main', agent_type: payload.agent_type || null, cwd: payload.cwd || null });
+    return Object.assign(event, { agent_id: payload.agent_id || 'ag_main', agent_type: payload.agent_type || null, teammate_name: payload.teammate_name || null, team_name: payload.team_name || null, cwd: payload.cwd || null });
   }
 
   if (eventType === 'tool_start' || eventType === 'tool_end') {
@@ -306,6 +397,39 @@ async function processEvent(payload) {
   const { record } = await sendEvent(event);
   const logRecords = [record];
   const events = [event];
+
+  // After agent_stop (Stop hook), extract last assistant response from transcript
+  if (eventType === 'agent_stop' && event.transcript_path) {
+    try {
+      const response = await extractLastResponse(event.transcript_path);
+      if (response) {
+        const responseEvent = {
+          id: `evt_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          session_id: event.session_id,
+          event_type: 'assistant_response',
+          timestamp: Date.now(),
+          agent_id: 'ag_main',
+          triggered_by_prompt_id: event.triggered_by_prompt_id || null,
+          response_summary: response.response_summary,
+          response_length: response.response_length,
+          tool_calls: response.tool_calls.join(','),
+          tool_call_count: response.tool_call_count,
+          has_code: response.has_code,
+          model: response.model,
+          tokens_in: response.tokens_in,
+          tokens_out: response.tokens_out,
+          cache_read: response.cache_read,
+          stop_reason: response.stop_reason,
+          cwd: event.cwd,
+        };
+        // Full text only to JSONL (no size limit), truncated to OTLP
+        const fullResponseEvent = { ...responseEvent, response_text: response.response_text };
+        const otlpResponseEvent = { ...responseEvent };
+        logRecords.push(buildOtlpLogRecord(otlpResponseEvent));
+        events.push(fullResponseEvent);
+      }
+    } catch { /* transcript unreadable — skip response extraction */ }
+  }
 
   // After agent_complete, parse transcript and emit attribution — batched into same OTLP request
   if (eventType === 'agent_complete' && event.agent_transcript_path) {
