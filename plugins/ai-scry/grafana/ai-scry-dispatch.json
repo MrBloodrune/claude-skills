@@ -66,7 +66,7 @@
         ]
       },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "horizontal",
         "textMode": "auto",
         "colorMode": "background"
@@ -160,7 +160,7 @@
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "horizontal",
         "displayMode": "gradient",
         "showUnfilled": true
@@ -239,7 +239,7 @@
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "pieType": "donut",
         "tooltip": { "mode": "single" },
         "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
@@ -272,7 +272,7 @@
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "horizontal",
         "displayMode": "gradient",
         "showUnfilled": true
