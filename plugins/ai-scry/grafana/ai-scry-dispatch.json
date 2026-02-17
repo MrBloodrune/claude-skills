@@ -27,17 +27,17 @@
       "targets": [
         {
           "refId": "Agents",
-          "expr": "count_over_time({service_name=\"ai-scry\"} | json | event_type=\"agent_complete\" [$__range])",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | event_type=\"agent_complete\" [$__range]))",
           "legendFormat": "Total Agents"
         },
         {
           "refId": "Tools",
-          "expr": "count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_start\" [$__range])",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_start\" [$__range]))",
           "legendFormat": "Total Tools"
         },
         {
           "refId": "Errors",
-          "expr": "count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_error\" [$__range])",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_error\" [$__range]))",
           "legendFormat": "Errors"
         }
       ],
@@ -130,42 +130,36 @@
       }
     },
     {
-      "title": "Agent Hierarchy",
-      "type": "nodeGraph",
+      "title": "Agent Duration",
+      "type": "bargauge",
       "gridPos": { "h": 12, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"ai-scry\"} | json | event_type=\"agent_complete\"",
-          "legendFormat": ""
-        }
-      ],
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": { "source": "Line", "format": "json" }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "renameByName": {
-              "agent_id": "id",
-              "agent_label": "title",
-              "duration_ms": "mainStat",
-              "tokens_in": "secondaryStat"
-            }
-          }
-        },
-        {
-          "id": "prepareTimeSeries",
-          "options": { "format": "many" }
+          "expr": "sum by (agent_label) (sum_over_time({service_name=\"ai-scry\"} | json | event_type=\"agent_complete\" | unwrap duration_ms [$__range]))",
+          "legendFormat": "{{agent_label}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {}
+          "color": { "mode": "palette-classic" },
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30000 },
+              { "color": "red", "value": 120000 }
+            ]
+          }
         }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
       }
     },
     {
@@ -176,7 +170,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_start\" | tool_name=\"Task\" [$__interval])",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | event_type=\"tool_start\" | tool_name=\"Task\" [$__interval]))",
           "legendFormat": "Agent Spawns"
         }
       ],
