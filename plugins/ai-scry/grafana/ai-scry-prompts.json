@@ -43,9 +43,8 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "event_type": true, "agent_id": true },
+            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "event_type": true, "agent_id": true, "id": true },
             "renameByName": {
-              "id": "Event ID",
               "session_id": "Session",
               "cwd": "Project",
               "prompt_text": "Prompt",
@@ -67,12 +66,6 @@
             "matcher": { "id": "byName", "options": "Session" },
             "properties": [
               { "id": "custom.width", "value": 140 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Event ID" },
-            "properties": [
-              { "id": "custom.hidden", "value": true }
             ]
           },
           {
