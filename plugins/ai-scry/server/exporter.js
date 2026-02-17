@@ -340,6 +340,7 @@ function buildOtlpPayload(logRecords) {
         attributes: [
           { key: 'service.name', value: { stringValue: 'ai-scry' } },
           { key: 'host.name', value: { stringValue: hostname() } },
+          { key: 'loki.attribute.labels', value: { stringValue: 'event_type,session_id,session_label' } },
         ],
       },
       scopeLogs: [{
