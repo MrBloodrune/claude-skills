@@ -27,17 +27,17 @@
       "targets": [
         {
           "refId": "Agents",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\", session_id=~\"$session_id\"} | json | event_type=\"agent_complete\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"agent_complete\" [$__range]))",
           "legendFormat": "Agents"
         },
         {
           "refId": "Tools",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\", session_id=~\"$session_id\"} | json | event_type=\"tool_start\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_start\" [$__range]))",
           "legendFormat": "Tools"
         },
         {
           "refId": "Errors",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\", session_id=~\"$session_id\"} | json | event_type=\"tool_error\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_error\" [$__range]))",
           "legendFormat": "Errors"
         }
       ],
@@ -66,6 +66,66 @@
         "orientation": "horizontal",
         "textMode": "auto",
         "colorMode": "background"
+      }
+    },
+    {
+      "title": "Agent Dispatch Table",
+      "type": "table",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"agent_complete\"",
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Line",
+            "format": "json"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Line": true, "id": true, "labels": true, "tsNs": true, "labelTypes": true, "session_id": true, "event_type": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true },
+            "renameByName": {
+              "agent_id": "Agent ID",
+              "parent_agent_id": "Parent",
+              "agent_label": "Type",
+              "task_description": "Task",
+              "model": "Model",
+              "duration_ms": "Duration",
+              "tokens_in": "Tokens In",
+              "tokens_out": "Tokens Out",
+              "status": "Status"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Task" },
+            "properties": [
+              { "id": "custom.width", "value": 300 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Duration" },
+            "properties": [
+              { "id": "unit", "value": "ms" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Time", "desc": true }]
       }
     }
   ],
