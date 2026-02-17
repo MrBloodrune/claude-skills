@@ -1,6 +1,6 @@
 {
   "name": "ai-scry",
   "description": "Agent telemetry exporter for Claude Code — captures hook events as OTLP logs to Alloy/Loki/Grafana",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "hooks": "./hooks/hooks.json"
 }
