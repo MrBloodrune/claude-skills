@@ -65,7 +65,13 @@
           {
             "matcher": { "id": "byName", "options": "Session" },
             "properties": [
-              { "id": "custom.width", "value": 140 }
+              { "id": "custom.width", "value": 140 },
+              { "id": "links", "value": [
+                {
+                  "title": "Drill into this session",
+                  "url": "/d/ai-scry-prompts/?var-prompt_session=${__data.fields.Session}&from=${__from}&to=${__to}"
+                }
+              ]}
             ]
           },
           {
@@ -90,7 +96,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"ai-scry\"} | json | event_type=\"user_prompt\" | id=\"$prompt_id\"",
+          "expr": "{service_name=\"ai-scry\"} | json | session_id=\"$prompt_session\" | event_type=\"user_prompt\"",
           "legendFormat": ""
         }
       ],
@@ -174,7 +180,7 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "id": true, "session_id": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true, "cwd": true, "tool_use_id": true, "tokens_in": true, "tokens_out": true, "duration_ms": true, "has_error": true, "status": true, "prompt_text": true, "stop_hook_active": true },
+            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "id": true, "session_id": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true, "cwd": true, "tool_use_id": true, "tokens_in": true, "tokens_out": true, "duration_ms": true, "has_error": true, "status": true, "prompt_text": true, "stop_hook_active": true, "task_data": true, "plan_data": true, "spawns_agent_id": true },
             "renameByName": {
               "event_type": "Event",
               "tool_name": "Tool",
