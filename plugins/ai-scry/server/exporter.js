@@ -327,4 +327,5 @@ async function processEvent(payload) {
   }
 
   await sendBatch(logRecords, events);
+  process.stdout.write('{}');
 }
