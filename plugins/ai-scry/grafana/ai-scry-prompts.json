@@ -43,12 +43,12 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "event_type": true, "agent_id": true, "id": true },
+            "excludeByName": { "Line": true, "labels": true, "tsNs": true, "labelTypes": true, "event_type": true, "agent_id": true, "id": true, "permission_mode": true, "triggered_by_prompt_id": true, "cwd": true },
             "renameByName": {
-              "session_id": "Session",
-              "cwd": "Project",
+              "session_label": "Session",
               "prompt_text": "Prompt",
-              "timestamp": "Timestamp"
+              "timestamp": "Timestamp",
+              "session_id": "session_id"
             }
           }
         }
@@ -65,13 +65,19 @@
           {
             "matcher": { "id": "byName", "options": "Session" },
             "properties": [
-              { "id": "custom.width", "value": 140 },
+              { "id": "custom.width", "value": 200 },
               { "id": "links", "value": [
                 {
                   "title": "Drill into this session",
-                  "url": "/d/ai-scry-prompts/?var-prompt_session=${__data.fields.Session}&from=${__from}&to=${__to}"
+                  "url": "/d/ai-scry-prompts/?var-prompt_session=${__data.fields.session_id}&from=${__from}&to=${__to}"
                 }
               ]}
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "session_id" },
+            "properties": [
+              { "id": "custom.hidden", "value": true }
             ]
           },
           {

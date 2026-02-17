@@ -95,9 +95,10 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Line": true, "id": true, "labels": true, "tsNs": true, "Time": false },
+            "excludeByName": { "Line": true, "id": true, "labels": true, "tsNs": true, "labelTypes": true, "session_id": true, "event_type": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true, "cwd": true, "permission_mode": true, "triggered_by_prompt_id": true, "Time": false },
             "indexByName": {},
             "renameByName": {
+              "session_label": "Session",
               "agent_id": "Agent ID",
               "parent_agent_id": "Parent",
               "agent_label": "Type",

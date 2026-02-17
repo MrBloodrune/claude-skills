@@ -31,17 +31,17 @@
       "targets": [
         {
           "refId": "Agents",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"agent_complete\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"agent_complete\" [$__range]))",
           "legendFormat": "Agents"
         },
         {
           "refId": "Tools",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_start\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"tool_start\" [$__range]))",
           "legendFormat": "Tools"
         },
         {
           "refId": "Errors",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_error\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"tool_error\" [$__range]))",
           "legendFormat": "Errors"
         }
       ],
@@ -80,7 +80,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"agent_complete\"",
+          "expr": "{service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"agent_complete\"",
           "legendFormat": ""
         }
       ],
@@ -95,7 +95,7 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Line": true, "id": true, "labels": true, "tsNs": true, "labelTypes": true, "session_id": true, "event_type": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true },
+            "excludeByName": { "Line": true, "id": true, "labels": true, "tsNs": true, "labelTypes": true, "session_id": true, "session_label": true, "event_type": true, "timestamp": true, "contributes_to": true, "transcript_path": true, "agent_transcript_path": true, "task_tags": true, "cwd": true, "permission_mode": true, "triggered_by_prompt_id": true },
             "renameByName": {
               "agent_id": "Agent ID",
               "parent_agent_id": "Parent",
@@ -140,7 +140,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (agent_label) (count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=~\"tool_start|tool_end\" [$__interval]))",
+          "expr": "sum by (agent_label) (count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=~\"tool_start|tool_end\" [$__interval]))",
           "legendFormat": "{{agent_label}}"
         }
       ],
@@ -172,7 +172,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=~\"tool_start|tool_end\"",
+          "expr": "{service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=~\"tool_start|tool_end\"",
           "legendFormat": ""
         }
       ],
@@ -195,7 +195,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_start\" | tool_name=\"Task\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"tool_start\" | tool_name=\"Task\" [$__interval]))",
           "legendFormat": "Agent Spawns"
         }
       ],
@@ -227,7 +227,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (tool_name) (count_over_time({service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_start\" [$__range]))",
+          "expr": "sum by (tool_name) (count_over_time({service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"tool_start\" [$__range]))",
           "legendFormat": "{{tool_name}}"
         }
       ],
@@ -251,7 +251,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"ai-scry\"} | json | session_id=~\"$session_id\" | event_type=\"tool_error\"",
+          "expr": "{service_name=\"ai-scry\"} | json | session_label=~\"${session:regex}\" | event_type=\"tool_error\"",
           "legendFormat": ""
         }
       ],
@@ -273,10 +273,10 @@
   "templating": {
     "list": [
       {
-        "name": "session_id",
+        "name": "session",
         "type": "query",
         "datasource": { "type": "loki", "uid": "loki" },
-        "query": "label_values({service_name=\"ai-scry\"}, session_id)",
+        "query": "label_values({service_name=\"ai-scry\"}, session_label)",
         "refresh": 2,
         "includeAll": true,
         "allValue": ".*",

@@ -112,9 +112,16 @@ function buildEvent(payload) {
   const now = Date.now();
   const toolInput = payload.tool_input || {};
 
+  // Build session_label: "project-dir (a1b2c3d4)"
+  const cwd = payload.cwd || null;
+  const cwdName = cwd ? cwd.split('/').filter(Boolean).pop() || cwd : '';
+  const sessionShort = sessionId.slice(-8);
+  const sessionLabel = cwdName ? `${cwdName} (${sessionShort})` : sessionShort;
+
   const event = {
     id: `evt_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
     session_id: sessionId,
+    session_label: sessionLabel,
     event_type: eventType,
     timestamp: now,
     permission_mode: payload.permission_mode || null,
@@ -318,6 +325,7 @@ function buildOtlpLogRecord(event) {
     attributes: [
       { key: 'event_type', value: { stringValue: event.event_type } },
       { key: 'session_id', value: { stringValue: event.session_id || '' } },
+      { key: 'session_label', value: { stringValue: event.session_label || '' } },
       { key: 'source', value: { stringValue: 'claude-code' } },
     ],
     traceId: '',
