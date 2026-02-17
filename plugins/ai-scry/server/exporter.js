@@ -4,13 +4,15 @@ import { join } from 'node:path';
 import { request } from 'node:http';
 import { extractTaskData, extractPlanData } from './tasks.js';
 import { createInterface } from 'node:readline';
+import { hostname } from 'node:os';
 
 const HOME = process.env.HOME || '/home';
 const BASE_DIR = join(HOME, '.claude', 'observatory');
 const SESSIONS_DIR = join(BASE_DIR, 'sessions');
 const PENDING_DIR = join(BASE_DIR, 'pending');
 const RESOLVED_DIR = join(BASE_DIR, 'resolved');
-const PORT = parseInt(process.env.OBSERVATORY_PORT || '7847', 10);
+const ALLOY_HOST = process.env.ALLOY_HOST || '127.0.0.1';
+const ALLOY_PORT = parseInt(process.env.ALLOY_PORT || '4318', 10);
 
 [PENDING_DIR, RESOLVED_DIR, SESSIONS_DIR].forEach(d => mkdirSync(d, { recursive: true }));
 
@@ -185,13 +187,77 @@ function matchPending(payload) {
   }
 }
 
-function postToServer(event) {
-  const body = JSON.stringify(event);
+// --- OTLP Transport ---
+
+function flattenAttributes(event) {
+  const attrs = [];
+  const add = (key, value) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'number') {
+      if (Number.isInteger(value)) {
+        attrs.push({ key, value: { intValue: String(value) } });
+      } else {
+        attrs.push({ key, value: { doubleValue: value } });
+      }
+    } else if (typeof value === 'boolean') {
+      attrs.push({ key, value: { boolValue: value } });
+    } else if (Array.isArray(value)) {
+      attrs.push({ key, value: { stringValue: value.join(',') } });
+    } else if (typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) {
+        add(`${key}_${k}`, v);
+      }
+    } else {
+      attrs.push({ key, value: { stringValue: String(value) } });
+    }
+  };
+  for (const [k, v] of Object.entries(event)) {
+    if (k === 'id' || k === 'event_type' || k === 'timestamp') continue;
+    add(k, v);
+  }
+  return attrs;
+}
+
+function buildOtlpLogRecord(event) {
+  return {
+    timeUnixNano: String(event.timestamp * 1_000_000),
+    severityNumber: 9,
+    severityText: 'INFO',
+    body: { stringValue: `ai_scry.${event.event_type}` },
+    attributes: [
+      { key: 'event_id', value: { stringValue: event.id } },
+      ...flattenAttributes(event),
+    ],
+    traceId: '',
+    spanId: '',
+  };
+}
+
+function buildOtlpPayload(logRecords) {
+  return {
+    resourceLogs: [{
+      resource: {
+        attributes: [
+          { key: 'service.name', value: { stringValue: 'ai-scry' } },
+          { key: 'host.name', value: { stringValue: hostname() } },
+        ],
+      },
+      scopeLogs: [{
+        scope: { name: 'ai-scry.hooks' },
+        logRecords,
+      }],
+    }],
+  };
+}
+
+function postToAlloy(payload) {
+  const body = JSON.stringify(payload);
   return new Promise((resolve) => {
     const req = request({
-      hostname: 'localhost', port: PORT, path: '/api/events',
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-      timeout: 3000,
+      hostname: ALLOY_HOST, port: ALLOY_PORT, path: '/v1/logs',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      timeout: 2000,
     }, (res) => { res.resume(); resolve(true); });
     req.on('error', () => resolve(false));
     req.on('timeout', () => { req.destroy(); resolve(false); });
@@ -216,19 +282,31 @@ async function parseTranscriptToolIds(transcriptPath) {
   return ids;
 }
 
+function writeJsonl(event) {
+  const safeSid = String(event.session_id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+  appendFileSync(join(SESSIONS_DIR, `${safeSid}.jsonl`), JSON.stringify(event) + '\n');
+}
+
 async function sendEvent(event) {
-  const sent = await postToServer(event);
-  if (!sent) {
-    const safeSid = String(event.session_id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
-    appendFileSync(join(SESSIONS_DIR, `${safeSid}.jsonl`), JSON.stringify(event) + '\n');
-  }
+  const record = buildOtlpLogRecord(event);
+  return { record, event };
+}
+
+async function sendBatch(logRecords, events) {
+  // Always write JSONL locally
+  for (const evt of events) writeJsonl(evt);
+  // POST OTLP to Alloy
+  const payload = buildOtlpPayload(logRecords);
+  await postToAlloy(payload);
 }
 
 async function processEvent(payload) {
   const event = buildEvent(payload);
-  await sendEvent(event);
+  const { record } = await sendEvent(event);
+  const logRecords = [record];
+  const events = [event];
 
-  // After agent_complete, parse transcript and emit attribution
+  // After agent_complete, parse transcript and emit attribution — batched into same OTLP request
   if (eventType === 'agent_complete' && event.agent_transcript_path) {
     try {
       const toolUseIds = await parseTranscriptToolIds(event.agent_transcript_path);
@@ -241,8 +319,11 @@ async function processEvent(payload) {
           agent_id: event.agent_id,
           tool_use_ids: toolUseIds,
         };
-        await sendEvent(attrEvent);
+        logRecords.push(buildOtlpLogRecord(attrEvent));
+        events.push(attrEvent);
       }
     } catch { /* transcript unreadable — skip attribution */ }
   }
+
+  await sendBatch(logRecords, events);
 }

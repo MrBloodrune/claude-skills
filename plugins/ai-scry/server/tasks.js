@@ -1,6 +1,6 @@
 /**
  * Task and plan data extraction for enriching hook events.
- * Called by emit.js to attach structured task/plan info to SSE events.
+ * Called by exporter.js to attach structured task/plan info to OTLP events.
  */
 
 export function extractTaskData(toolName, toolInput, toolResponse) {
