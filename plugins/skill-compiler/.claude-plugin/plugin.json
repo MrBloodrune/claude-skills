@@ -1,0 +1,8 @@
+{
+  "name": "skill-compiler",
+  "version": "0.1.0",
+  "description": "Compile marketplace-format Claude Code skills into minified, embedded-friendly format for resource-constrained agents like MimiClaw",
+  "author": {
+    "name": "bloodrune"
+  }
+}

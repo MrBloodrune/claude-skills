@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.6.1"
+    "version": "2.6.2"
   },
   "plugins": [
     {
@@ -157,6 +157,12 @@
       "name": "technical-visualizer",
       "description": "Interactive educational visualization builder for technical topics with 15 patterns and PCB schematic aesthetic",
       "source": "./plugins/technical-visualizer",
+      "strict": false
+    },
+    {
+      "name": "skill-compiler",
+      "description": "Compile marketplace-format Claude Code skills into minified embedded format (.memory + .md) for resource-constrained agents like MimiClaw ESP32-S3",
+      "source": "./plugins/skill-compiler",
       "strict": false
     }
   ]
