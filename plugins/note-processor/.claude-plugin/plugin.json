@@ -1,6 +1,6 @@
 {
   "name": "note-processor",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Mode-based note processing for Obsidian vaults — daily captures, inbox scanning, and link archiving with safety-first agent design",
   "author": {
     "name": "MrBloodrune"

@@ -42,7 +42,7 @@ This plugin provides processing **modes** — each mode is a self-contained reci
 
 ### Tool Restrictions
 
-The note-processor agent has access to: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
+The note-processor agent has access to: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`.
 
 **No Bash access.** This prevents file deletion, arbitrary command execution, and destructive operations.
 

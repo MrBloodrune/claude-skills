@@ -1,6 +1,6 @@
 ---
 description: Process today's Obsidian daily note captures (shortcut for /process daily)
-allowed-tools: Read, Write, Edit, Glob, Grep
+allowed-tools: Read, Write, Edit, Glob, Grep, WebFetch
 argument-hint: [YYYY-MM-DD]
 ---
 
