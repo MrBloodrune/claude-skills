@@ -307,13 +307,33 @@ Returns JSON:
 
 ### Monitoring Cycle
 
-1. **Check** — Run `check-manager.sh` for each active Manager
-2. **Assess** — Based on status:
-   - `running` + 0 escalations → wait and check again
-   - `running` + escalations > 0 → read escalation file, handle (see below)
+Each check is a self-perpetuating cycle — every check fires the next one as a background task. This is the same pattern as the tmux skill's monitoring loop.
+
+1. **Fire** — Run a background check:
+   ```bash
+   sleep N && tmux capture-pane -t {name} -p -S -50
+   ```
+   Run with `run_in_background: true`. Also run `check-manager.sh {name}` for structured status.
+
+2. **When notified** — Read the pane capture result.
+
+3. **Assess** — Evaluate the capture for multiple signals:
+   - **Status**: `check-manager.sh` result (running/complete/not_found/escalations)
+   - **Context health**: Look for `"Context left until auto-compact: X%"` in the pane. If X ≤ 20 → flag for proactive recovery (see below)
+   - **Compaction**: Look for `"Compacting our conversation"` or `"Auto-compact"` text → reactive recovery (see below)
+   - **Stalls**: Compare to previous capture (3 identical = confirmed stall)
+   - **Completion**: `[COMPLETE]` signal or shell prompt returned
+
+4. **Act** — Based on assessment:
+   - `running` + healthy context → schedule next check (back to step 1)
+   - `running` + escalations > 0 → read escalation file, handle
+   - `running` + context ≤ 20% + Manager idle → **Proactive Context Recovery**
+   - `running` + compaction text visible → **Reactive Compaction Recovery**
    - `complete` → Manager finished, check results
-   - `not_found` → something went wrong, investigate
-3. **Schedule next check** — Use these intervals:
+   - `not_found` → investigate
+   - Stall confirmed → enter stall detection
+
+5. **Schedule next check** — Pick interval from the reference table and fire the next background check (back to step 1):
 
 | Signal | Interval | Rationale |
 |--------|----------|-----------|
@@ -322,8 +342,19 @@ Returns JSON:
 | Running, active tool use | 30-45s | Monitor progress |
 | Running, escalations present | 15-20s | Needs attention |
 | Manager appears idle | 30s | Check for stall |
+| Post-recovery (first 2-3 checks) | 15-20s | Verify Manager is back on track |
 
-4. **Release dependent chunks** — When a prerequisite Manager completes, dispatch the next dependent chunk
+6. **Release dependent chunks** — When a prerequisite Manager completes, dispatch the next dependent chunk
+
+### Director State Tracking
+
+During each monitoring check, note what you observe about each Manager's progress. This feeds into recovery prompts if needed:
+
+- **Unit completions** — pane captures showing worker results, artifact paths written
+- **Current workflow stage** — which stage the Manager appears to be executing (research, create, test, debug, etc.)
+- **Decisions sent** — any CLARIFY responses or corrections delivered to the Manager
+
+Hold a short summary after each capture (e.g., "Manager at create stage, 2/4 units complete, working on timing-diagram.html"). When the next check arrives, compare against this summary.
 
 ### Handling Escalations
 
@@ -378,32 +409,78 @@ If `check-manager.sh` shows the same `last_event` across 3 consecutive checks:
 5. If process exited → Manager is done, proceed to completion
 6. If 2-3 interventions don't help → alert user
 
-### Compaction Recovery
+### Context Recovery
 
-Compaction strips a Manager's working memory mid-session. Without intervention, the Manager will resume with degraded context — leading to scope drift, repeated work, or lost progress. The Director prevents this by sending a context package immediately after detecting compaction.
+Context recovery prevents Managers from losing their working memory. There are two paths — proactive (preferred) and reactive (fallback). Both use the same re-prime prompt template.
 
-#### Detection
+#### Path A: Proactive Context Recovery (preferred)
 
-During any pane capture (monitoring checks, stall investigation), look for compaction indicators:
+The Director clears the Manager's session **before** compaction triggers, avoiding lossy summarization entirely. This is a deterministic reset — the Manager gets a clean slate with the same quality of context it had at launch.
 
-- `Auto-compact` or `compacting conversation` in the output
-- `context window` warnings or trim messages
-- A visible gap where prior tool output was present but is now absent
+**Conditions** (both must be true):
+1. Context remaining ≤ 20% — visible in pane as `"Context left until auto-compact: X%"`
+2. Manager is idle — no active tool calls (`check-manager.sh` shows last event > 30s ago) or Manager is at a prompt
 
-If compaction text appears in the captured pane output, treat it as an immediate action item — do not wait for the next scheduled check.
+**Why idle matters:** If workers are active, their results will arrive into a cleared context with no parent prompt. Wait for an idle window.
 
-#### Context Package
+**Sequence:**
 
-When compaction is detected, compose and send a context package immediately. The goal is to re-ground the Manager before it takes its next action. The package must arrive while the Manager is still processing the compaction or waiting for its next prompt.
+```bash
+# 1. Send /clear
+tmux send-keys -t {name} '/clear' Enter
 
-The recovery package is the original dispatch prompt re-delivered — same structure, same fields — with a progress section appended. The Manager should receive essentially what it got at launch, plus awareness of where it currently stands.
+# 2. Wait for clear to complete, verify fresh banner
+sleep 5 && tmux capture-pane -t {name} -p -S -20
+```
 
-**Template:**
+Verify the pane shows a fresh Claude Code banner (version, model, project path). If not, wait 3s and re-check. Max 2 retries.
+
+```bash
+# 3. Compose re-prime prompt (see template below)
+cat > /tmp/tmux-reprime-{name}.txt << 'REPRIME'
+{composed re-prime prompt}
+REPRIME
+
+# 4. Deliver via standard paste method
+tmux load-buffer /tmp/tmux-reprime-{name}.txt
+tmux paste-buffer -t {name}
+
+# 5. Submit and validate
+tmux send-keys -t {name} Enter
+```
+
+After submitting, fire a background check (`sleep 10 && tmux capture-pane`) to verify the Manager is processing the re-prime — look for skill loading, tool calls, or task assessment.
+
+#### Path B: Reactive Compaction Recovery (fallback)
+
+If compaction fires before the Director catches an idle window (e.g., workers running continuously), send the re-prime prompt into the compacted context. Less ideal — the Manager has a lossy summary plus the re-prime — but still functional.
+
+**Detection** — During any pane capture, look for:
+- `"Compacting our conversation"` or `"Auto-compact"` in the output
+- `"context window"` warnings or trim messages
+
+If compaction text appears, treat it as an immediate action item.
+
+**Delivery** — Same re-prime prompt, but delivered as a follow-up message (not after `/clear`):
+
+```bash
+cat > /tmp/tmux-recovery-{name}.txt << 'RECOVERY'
+{composed re-prime prompt}
+RECOVERY
+
+tmux load-buffer /tmp/tmux-recovery-{name}.txt && tmux paste-buffer -t {name} && sleep 1 && tmux send-keys -t {name} Enter
+```
+
+#### Re-Prime Prompt Template
+
+Both paths use this template. It is the original dispatch prompt re-delivered with progress and recovery instructions appended.
 
 ```markdown
-# Context Recovery — Post-Compaction
+# Context Recovery — Session {Cleared | Compacted}
 
-Your conversation was compacted. This is a re-delivery of your original dispatch with current progress. Review it fully before taking any action.
+{For Path A: "Your session was cleared to prevent lossy compaction."}
+{For Path B: "Your conversation was compacted."}
+This is a re-delivery of your original dispatch with current progress. Review everything below before taking any action.
 
 ## Your Skill
 
@@ -455,52 +532,36 @@ In-progress units:
 Remaining units:
 {remaining_units_list}
 
-## Agent ID Tracking (preserve these)
-
-{artifact_to_agent_id_mappings}
-
 ## Decisions Already Made
 
 {any_clarify_responses_or_decisions_sent_earlier}
 
-## Resume
+## Recovery Instructions
 
-Continue from where you left off. Do not re-research completed units. Do not re-dispatch completed workers. Pick up the current stage and proceed.
+This is a mid-workflow recovery.
+
+- Load the orchestrator-manager skill and re-read it
+- Trust the Current Progress section above as ground truth
+- Do NOT re-atomize the task — the unit breakdown is already done
+- Do NOT re-research completed units
+- Do NOT re-dispatch completed workers
+- Agent IDs from the previous session are invalid — new workers get fresh IDs
+- Resume from the current stage and proceed normally
 ```
 
-#### Composing the Package
+#### Composing the Re-Prime
 
 The template uses the same placeholders as the original dispatch prompt. Pull values from:
 
 - **task_scope, workflow, skills_subset, output_paths, input_context, constraints** — the original dispatch record at `~/.claude/observatory/dispatch/{name}.json` and the prompt you composed at dispatch time
-- **current_stage, progress, agent IDs** — your own monitoring state (what you've observed in prior checks)
+- **current_stage, progress** — your own monitoring state (what you've observed in prior checks via the Director State Tracking notes)
 - **decisions made** — any CLARIFY responses you previously sent to this Manager
 
 If you don't have precise progress data, state what you know and what's uncertain. Partial grounding is better than none.
 
-#### Delivery
+#### After Recovery
 
-Use the standard follow-up method — this must arrive before the Manager's next action:
-
-```bash
-cat > /tmp/tmux-recovery-{name}.txt << 'RECOVERY'
-{composed context package}
-RECOVERY
-
-tmux load-buffer /tmp/tmux-recovery-{name}.txt && tmux paste-buffer -t {name} && sleep 1 && tmux send-keys -t {name} Enter
-```
-
-After sending, capture the pane to confirm the Manager received and is processing it:
-
-```bash
-sleep 10 && tmux capture-pane -t {name} -p -S -30
-```
-
-Look for signs the Manager acknowledged the recovery — tool calls resuming, progress on the current stage. If the Manager appears confused or is re-doing completed work, send a more targeted correction.
-
-#### Monitoring After Recovery
-
-Shorten the check interval to 15-20s for the next 2-3 checks after sending a recovery package. Verify the Manager is back on track before returning to normal monitoring cadence.
+Shorten the check interval to 15-20s for the next 2-3 checks. Verify the Manager is back on track — look for tool calls resuming, progress on the current stage. If the Manager appears confused or is re-doing completed work, send a targeted correction. Return to normal monitoring cadence once confirmed.
 
 ---
 
@@ -613,12 +674,13 @@ DISPATCH (per chunk):
   6. load-buffer + paste-buffer the prompt
   7. send-keys Enter, capture-pane to validate
 
-MONITOR:
-  1. check-manager.sh per active Manager
-  2. Handle escalations
-  3. Release dependent chunks on completion
-  4. Detect stalls (3 identical checks)
-  5. Detect compaction → send context recovery package immediately
+MONITOR (self-perpetuating cycle — each check fires the next):
+  1. Fire: sleep N && capture-pane (background) + check-manager.sh
+  2. Assess: status, context health (X% remaining), stalls, completions
+  3. Act: escalations, stalls, dependent chunk release
+  4. Context ≤ 20% + idle → Path A: /clear + re-prime (proactive)
+  5. Compaction text visible → Path B: send re-prime into compacted context
+  6. Schedule next check (back to 1)
 
 FINALIZE:
   1. Dispatch finalization Manager (finalize workflow)

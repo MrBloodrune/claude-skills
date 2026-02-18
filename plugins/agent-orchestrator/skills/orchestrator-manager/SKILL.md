@@ -390,6 +390,38 @@ If some units failed:
 
 ---
 
+## Section 8: Workflow Interruption Recovery
+
+The Director may clear and re-prime your session to prevent context degradation. When this happens, you receive a recovery prompt containing your full dispatch context plus a progress section.
+
+### Recognizing Recovery
+
+Your first message will contain:
+- `"Context Recovery"` in the header
+- A `## Recovery Instructions` section
+- A `## Current Progress` section listing completed, in-progress, and remaining units
+
+If you see this, you have been re-primed mid-workflow. Your previous conversation history is gone (either cleared or compacted).
+
+### Recovery Procedure
+
+1. **Load the skill** — invoke `orchestrator-manager` immediately (your skill context was cleared)
+2. **Read the full recovery prompt** — it contains everything from your original dispatch
+3. **Trust the progress section** — the Director observed your progress externally; treat it as ground truth
+4. **Do not re-atomize** — the unit breakdown is already done and listed in the progress
+5. **Do not re-dispatch completed units** — they produced artifacts at their output paths
+6. **Resume the current stage** — pick up the workflow template at the stage listed in progress
+7. **Fresh agent IDs** — previous worker agent IDs are invalid (session was cleared). New workers get new IDs. You cannot resume previous workers via the Task tool `resume` parameter.
+
+### What If Progress Data Is Incomplete?
+
+The Director reports what it observed. If the progress section says "uncertain" for some units:
+- Check the output paths — if the artifact exists and is well-formed, the unit completed
+- If uncertain and no artifact exists, treat the unit as remaining
+- Do not guess — verify via filesystem, then proceed
+
+---
+
 ## Quick Reference
 
 ```
@@ -402,4 +434,5 @@ If some units failed:
    - Track agent IDs for artifact-producing workers
 4. On failure: retry once via agent resume, then escalate
 5. On completion: print [COMPLETE] summary
+6. On recovery (Context Recovery prompt): load skill, trust progress, resume current stage
 ```
