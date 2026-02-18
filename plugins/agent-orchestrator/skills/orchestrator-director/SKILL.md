@@ -378,6 +378,130 @@ If `check-manager.sh` shows the same `last_event` across 3 consecutive checks:
 5. If process exited → Manager is done, proceed to completion
 6. If 2-3 interventions don't help → alert user
 
+### Compaction Recovery
+
+Compaction strips a Manager's working memory mid-session. Without intervention, the Manager will resume with degraded context — leading to scope drift, repeated work, or lost progress. The Director prevents this by sending a context package immediately after detecting compaction.
+
+#### Detection
+
+During any pane capture (monitoring checks, stall investigation), look for compaction indicators:
+
+- `Auto-compact` or `compacting conversation` in the output
+- `context window` warnings or trim messages
+- A visible gap where prior tool output was present but is now absent
+
+If compaction text appears in the captured pane output, treat it as an immediate action item — do not wait for the next scheduled check.
+
+#### Context Package
+
+When compaction is detected, compose and send a context package immediately. The goal is to re-ground the Manager before it takes its next action. The package must arrive while the Manager is still processing the compaction or waiting for its next prompt.
+
+The recovery package is the original dispatch prompt re-delivered — same structure, same fields — with a progress section appended. The Manager should receive essentially what it got at launch, plus awareness of where it currently stands.
+
+**Template:**
+
+```markdown
+# Context Recovery — Post-Compaction
+
+Your conversation was compacted. This is a re-delivery of your original dispatch with current progress. Review it fully before taking any action.
+
+## Your Skill
+
+Load this skill immediately: `orchestrator-manager`
+
+This skill contains your full operational playbook — atomization procedures, worker dispatch protocol, escalation rules, and workflow execution instructions. Follow it exactly.
+
+## Your Task
+
+{task_scope}
+
+## Workflow
+
+Use workflow template: `{workflow_template}`
+
+## Available Skills (from registry)
+
+{skills_subset}
+
+## Output Paths
+
+{output_paths}
+
+## Input Context
+
+{input_context}
+
+## Constraints
+
+- Follow the workflow template stages in order
+- Dispatch workers via the Task tool as subagents
+- Track artifact → worker agent ID for debug resume
+- Write escalations to: `~/.claude/observatory/dispatch/{tmux_session_name}.escalations.jsonl`
+- On completion, print `[COMPLETE] {summary}` as your final message
+- Do not interact with users — you have no user channel
+- Do not spawn tmux sessions — only the Director does that
+- Do not modify scope beyond what is described above
+
+## Current Progress
+
+Current stage: {current_stage}
+
+Completed units:
+{completed_units_list}
+
+In-progress units:
+{in_progress_units_list}
+
+Remaining units:
+{remaining_units_list}
+
+## Agent ID Tracking (preserve these)
+
+{artifact_to_agent_id_mappings}
+
+## Decisions Already Made
+
+{any_clarify_responses_or_decisions_sent_earlier}
+
+## Resume
+
+Continue from where you left off. Do not re-research completed units. Do not re-dispatch completed workers. Pick up the current stage and proceed.
+```
+
+#### Composing the Package
+
+The template uses the same placeholders as the original dispatch prompt. Pull values from:
+
+- **task_scope, workflow, skills_subset, output_paths, input_context, constraints** — the original dispatch record at `~/.claude/observatory/dispatch/{name}.json` and the prompt you composed at dispatch time
+- **current_stage, progress, agent IDs** — your own monitoring state (what you've observed in prior checks)
+- **decisions made** — any CLARIFY responses you previously sent to this Manager
+
+If you don't have precise progress data, state what you know and what's uncertain. Partial grounding is better than none.
+
+#### Delivery
+
+Use the standard follow-up method — this must arrive before the Manager's next action:
+
+```bash
+cat > /tmp/tmux-recovery-{name}.txt << 'RECOVERY'
+{composed context package}
+RECOVERY
+
+tmux load-buffer /tmp/tmux-recovery-{name}.txt && tmux paste-buffer -t {name} && sleep 1 && tmux send-keys -t {name} Enter
+```
+
+After sending, capture the pane to confirm the Manager received and is processing it:
+
+```bash
+sleep 10 && tmux capture-pane -t {name} -p -S -30
+```
+
+Look for signs the Manager acknowledged the recovery — tool calls resuming, progress on the current stage. If the Manager appears confused or is re-doing completed work, send a more targeted correction.
+
+#### Monitoring After Recovery
+
+Shorten the check interval to 15-20s for the next 2-3 checks after sending a recovery package. Verify the Manager is back on track before returning to normal monitoring cadence.
+
 ---
 
 ## Phase 5: FINALIZE
@@ -494,6 +618,7 @@ MONITOR:
   2. Handle escalations
   3. Release dependent chunks on completion
   4. Detect stalls (3 identical checks)
+  5. Detect compaction → send context recovery package immediately
 
 FINALIZE:
   1. Dispatch finalization Manager (finalize workflow)
