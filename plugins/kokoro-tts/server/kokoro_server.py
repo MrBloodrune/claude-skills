@@ -151,7 +151,7 @@ class KokoroServer:
             return
         try:
             stream = self.kokoro.create_stream(text, voice=voice, speed=speed)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             executor = self._get_audio_executor()
             async for samples, sr in stream:
                 if cancel.is_set():
@@ -281,7 +281,7 @@ class KokoroServer:
         cancel = threading.Event()
         self.cancel_events[session_id] = cancel
         executor = self._get_audio_executor()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         async def _play():
             try:

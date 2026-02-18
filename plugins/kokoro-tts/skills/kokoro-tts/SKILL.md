@@ -92,7 +92,7 @@ These apply only when `weight="speech"`:
 
 ### Content Guidelines
 
-- **brief mode**: 1 short sentence. Outcome + next action if any. "Done, tests pass." / "Which endpoint?" / "Fixed the race condition."
+- **brief mode**: Ultra-compact. For simple confirmations, use 3-6 words: "Done, tests pass." / "Fixed." / "Three files updated." Reserve a full sentence only when context is needed: errors, questions, or summaries of findings.
 - **conversational mode**: 2-4 sentences. Enough for context and explanation.
 - **verbose mode**: Full spoken detail. Explain reasoning, tradeoffs, what you did and why.
 

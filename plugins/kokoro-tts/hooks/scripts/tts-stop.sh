@@ -87,13 +87,26 @@ for line in sys.stdin:
         texts = [c["text"] for c in msg_content if c.get("type") == "text" and c.get("text", "").strip()]
         if texts:
             collected.append(" ".join(texts))
-# If the last assistant entry was a tool_use, this is an intermediate stop -- skip
+# If the last assistant entry was a tool_use, this is an intermediate stop
 if last_assistant_has_tool_use:
+    print("__INTERMEDIATE__")
     sys.exit(0)
 if collected:
     # Reverse since we scanned backwards, join all fragments
     print(" ".join(reversed(collected)))
 ' 2>/dev/null)
+
+# Intermediate stop -- play working tick (suppressed in quiet mode)
+if [ "$claude_response" = "__INTERMEDIATE__" ]; then
+  echo "[$(date)] Intermediate stop detected" >> "$LOG"
+  if [ "$MODE" != "quiet" ]; then
+    echo "[$(date)] Playing working tick (intermediate)" >> "$LOG"
+    curl -s -X POST "$SERVER/play-sound" -H "Content-Type: application/json" -d "{\"sound\":\"working\",\"session_id\":\"$session_id\"}" >/dev/null 2>&1 &
+  else
+    echo "[$(date)] Intermediate tick suppressed (quiet mode)" >> "$LOG"
+  fi
+  exit 0
+fi
 
 if [ -z "$claude_response" ]; then
   echo "[$(date)] No response found" >> "$LOG"
