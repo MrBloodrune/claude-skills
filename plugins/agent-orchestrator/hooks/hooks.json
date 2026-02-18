@@ -4,6 +4,11 @@
       "event": "SessionStart",
       "type": "command",
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/register-session.sh"
+    },
+    {
+      "event": "Stop",
+      "type": "command",
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/complete-session.sh"
     }
   ]
 }
