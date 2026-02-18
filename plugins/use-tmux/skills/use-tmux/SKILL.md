@@ -193,7 +193,12 @@ This tells you: **crashed** (no process) vs **hung** (process alive but no outpu
 
 - **Prompt suggestion visible** (child's response ended and text appears on the input line -- this is Claude Code's autocomplete, not user input) → accept, submit, and capture in one command: `tmux send-keys -t <name> "Tab" "Enter" && sleep 7 && tmux capture-pane -t <name> -p -S -50`. `"Tab"` and `"Enter"` must be separate quoted arguments (never `"Tab Enter"` combined). Tab accepts the suggestion, Enter submits it, then capture confirms it took. This is the most common stall cause.
 - **Child waiting at a permission prompt or question** → send appropriate input via `tmux send-keys -t <name> "response" Enter`.
-- **Child appears hung mid-output** (process alive, no new content) → send a gentle nudge: `tmux send-keys -t <name> Enter`.
+- **Child appears hung mid-output** (process alive, no new content) → send a text nudge using the standard paste pattern:
+  ```bash
+  echo "Continue with the remaining work." > /tmp/tmux-nudge-<name>.txt
+  tmux load-buffer /tmp/tmux-nudge-<name>.txt && tmux paste-buffer -t <name> && tmux send-keys -t <name> Enter
+  ```
+  A bare `Enter` submits an empty line, which Claude ignores. You must send actual text to prompt a response.
 - **Child process exited or session is dead** → skip to Completion & Review (Phase 3) and report what happened.
 
 **4. Re-check.** Fire a 10-15s background check after any intervention to see if it worked.
@@ -271,6 +276,7 @@ Report: what was completed, what was missed (if anything), and any concerns.
 | Skipping validation after completion | Always launch a code-reviewer subagent to verify the work matched the plan |
 | Sending bare `Enter` to accept prompt suggestions | Suggestions need `"Tab"` then `"Enter"` as separate args -- Tab accepts the autocomplete, Enter submits. Bare Enter sends an empty line |
 | Quoting `"Tab Enter"` as one argument | tmux treats unrecognized key names as literal text. `"Tab Enter"` types the characters. Use `"Tab" "Enter"` as two separate arguments |
+| Sending bare `Enter` as a nudge | Claude ignores empty submissions. Use `load-buffer` + `paste-buffer` with actual text like "Continue with the remaining work." then `send-keys Enter` to submit |
 
 ## Sending Follow-Up Messages
 
