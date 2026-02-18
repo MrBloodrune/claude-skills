@@ -118,6 +118,12 @@
       "strict": false
     },
     {
+      "name": "agent-orchestrator",
+      "description": "Three-tier Director/Manager/Worker orchestration for multi-session agent coordination with composable domain skills",
+      "source": "./plugins/agent-orchestrator",
+      "strict": false
+    },
+    {
       "name": "ai-scry",
       "description": "Agent telemetry exporter for Claude Code — captures hook events as OTLP logs to Alloy/Loki/Grafana",
       "source": "./plugins/ai-scry",
