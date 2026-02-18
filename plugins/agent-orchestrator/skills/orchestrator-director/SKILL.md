@@ -307,33 +307,37 @@ Returns JSON:
 
 ### Monitoring Cycle
 
-Each check is a self-perpetuating cycle — every check fires the next one as a background task. This is the same pattern as the tmux skill's monitoring loop.
+Monitoring uses a **single consolidated loop** — one background check covers ALL active managers. This prevents notification stacking when multiple managers run concurrently.
 
-1. **Fire** — Run a background check:
+1. **Fire** — Run ONE background check for all active managers:
    ```bash
-   sleep N && tmux capture-pane -t {name} -p -S -50
+   sleep N && for mgr in {mgr1} {mgr2} {mgr3}; do echo "==$mgr==" && {plugin_root}/scripts/check-manager.sh $mgr; done
    ```
-   Run with `run_in_background: true`. Also run `check-manager.sh {name}` for structured status.
+   Run with `run_in_background: true`. Substitute the list of active (non-complete) manager session names.
 
-2. **When notified** — Read the pane capture result.
+2. **When notified** — Read the consolidated result. Parse each manager's JSON block.
 
-3. **Assess** — Evaluate the capture for multiple signals:
-   - **Status**: `check-manager.sh` result (running/complete/not_found/escalations)
-   - **Context health**: Look for `"Context left until auto-compact: X%"` in the pane. If X ≤ 20 → flag for proactive recovery (see below)
-   - **Compaction**: Look for `"Compacting our conversation"` or `"Auto-compact"` text → reactive recovery (see below)
-   - **Stalls**: Compare to previous capture (3 identical = confirmed stall)
-   - **Completion**: `[COMPLETE]` signal or shell prompt returned
+3. **Assess** — For each manager in the output:
+   - `running` + no escalations → healthy, no action
+   - `running` + escalations > 0 → read escalation file, handle (see Handling Escalations)
+   - `complete` → Manager finished, check results, remove from active list
+   - `not_found` → investigate (session may have crashed)
+   - Stall suspected (same `last_event` across 3 consecutive checks) → capture pane for that manager only
 
-4. **Act** — Based on assessment:
-   - `running` + healthy context → schedule next check (back to step 1)
-   - `running` + escalations > 0 → read escalation file, handle
-   - `running` + context ≤ 20% + Manager idle → **Proactive Context Recovery**
-   - `running` + compaction text visible → **Reactive Compaction Recovery**
-   - `complete` → Manager finished, check results
-   - `not_found` → investigate
+4. **Pane capture** — Only when needed, not every cycle:
+   - **Stall triage**: `tmux capture-pane -t {specific_name} -p -S -50` to diagnose
+   - **Context health** (every 3rd cycle): capture panes for all active managers to check `"Context left until auto-compact: X%"`. If X ≤ 20 → flag for proactive recovery
+   - **Post-recovery validation**: capture pane to confirm Manager resumed
+
+5. **Act** — Based on assessment:
+   - All healthy → schedule next check (back to step 1)
+   - Escalations → handle per protocol
+   - Context ≤ 20% + Manager idle → **Proactive Context Recovery**
+   - Compaction text in pane → **Reactive Compaction Recovery**
    - Stall confirmed → enter stall detection
+   - Manager complete → release dependent chunks
 
-5. **Schedule next check** — Pick interval from the reference table and fire the next background check (back to step 1):
+6. **Schedule next check** — Pick the SHORTEST interval needed across all active managers:
 
 | Signal | Interval | Rationale |
 |--------|----------|-----------|
@@ -344,7 +348,9 @@ Each check is a self-perpetuating cycle — every check fires the next one as a 
 | Manager appears idle | 30s | Check for stall |
 | Post-recovery (first 2-3 checks) | 15-20s | Verify Manager is back on track |
 
-6. **Release dependent chunks** — When a prerequisite Manager completes, dispatch the next dependent chunk
+When multiple managers are active, use the shortest interval any single manager requires. This ensures no manager is under-monitored while keeping notification volume to one chain.
+
+7. **Release dependent chunks** — When a prerequisite Manager completes, dispatch the next dependent chunk
 
 ### Director State Tracking
 
@@ -674,13 +680,14 @@ DISPATCH (per chunk):
   6. load-buffer + paste-buffer the prompt
   7. send-keys Enter, capture-pane to validate
 
-MONITOR (self-perpetuating cycle — each check fires the next):
-  1. Fire: sleep N && capture-pane (background) + check-manager.sh
-  2. Assess: status, context health (X% remaining), stalls, completions
-  3. Act: escalations, stalls, dependent chunk release
-  4. Context ≤ 20% + idle → Path A: /clear + re-prime (proactive)
-  5. Compaction text visible → Path B: send re-prime into compacted context
-  6. Schedule next check (back to 1)
+MONITOR (single consolidated loop — one check covers all managers):
+  1. Fire: sleep N && check-manager.sh for ALL active managers (one background task)
+  2. Assess: parse each manager's JSON status
+  3. Pane capture: only on stalls, context health (every 3rd cycle), or post-recovery
+  4. Act: escalations, stalls, dependent chunk release
+  5. Context ≤ 20% + idle → Path A: /clear + re-prime (proactive)
+  6. Compaction text visible → Path B: send re-prime into compacted context
+  7. Schedule next check: shortest interval across all managers (back to 1)
 
 FINALIZE:
   1. Dispatch finalization Manager (finalize workflow)
