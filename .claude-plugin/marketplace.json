@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Bloodrune Skills Marketplace - A collection of Claude Code skills for development, creative tools, and utilities",
-    "version": "2.6.2"
+    "version": "2.7.0"
   },
   "plugins": [
     {
@@ -59,8 +59,14 @@
     },
     {
       "name": "process-daily",
-      "description": "Process raw captures from Obsidian Daily notes into structured, linked notes with intelligent categorization",
+      "description": "[Deprecated — use note-processor] Process raw captures from Obsidian Daily notes into structured, linked notes with intelligent categorization",
       "source": "./plugins/process-daily",
+      "strict": false
+    },
+    {
+      "name": "note-processor",
+      "description": "Mode-based note processing for Obsidian vaults — daily captures, inbox scanning, and link archiving with safety-first agent design",
+      "source": "./plugins/note-processor",
       "strict": false
     },
     {
