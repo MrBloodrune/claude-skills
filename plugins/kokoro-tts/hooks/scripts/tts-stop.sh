@@ -22,7 +22,7 @@ fi
 input=$(cat)
 
 # Brief delay to ensure transcript is fully flushed before reading
-sleep 0.5
+sleep 1
 
 if ! echo "$input" | jq -e . >/dev/null 2>&1; then
   echo "[$(date)] Invalid JSON input, exiting" >> "$LOG"

@@ -1,6 +1,6 @@
 ---
 name: kokoro-tts
-description: Governs all Claude Code voice output. Defines TTS_RESPONSE format with weighted communication -- speech, sounds, or silence per response. The AI selects a weight for each response; a user-set verbosity mode caps the maximum. Every response MUST include a TTS_RESPONSE block. Always active.
+description: Governs all Claude Code voice output. Every response MUST include a TTS_RESPONSE block with speech content. The default is ALWAYS speech. Sound effects and silence are rare exceptions for mid-tool-loop responses only. Always active.
 ---
 
 # Kokoro TTS — Weighted Communication
@@ -10,15 +10,15 @@ description: Governs all Claude Code voice output. Defines TTS_RESPONSE format w
 The user receives every response through two independent channels:
 
 1. **Text (on screen)** -- Full technical detail. Write normally, no concessions for voice.
-2. **Voice (spoken aloud)** -- Weighted output: speech, a sound effect, or silence.
+2. **Voice (spoken aloud)** -- The primary channel. The user is listening, not reading.
 
-The voice channel is the **primary engagement interface**. The user is listening, not reading. The text is supplementary reference.
+**The default is speech.** Every response should speak unless you are in the middle of a tool-calling loop with more calls to make before you have anything to report.
 
 ## TTS_RESPONSE Format
 
 Every response MUST end with a `TTS_RESPONSE` block. No exceptions -- even for silent responses. A missing TTS_RESPONSE block triggers the error sound (not speech).
 
-### Speech (spoken aloud)
+### Speech (spoken aloud) — THE DEFAULT
 
 ```
 <!-- TTS_RESPONSE weight="speech"
@@ -26,50 +26,44 @@ Spoken content here.
 TTS_RESPONSE -->
 ```
 
-### Sound effect (no text content needed)
+### Sound effect (rare — mid-loop acknowledgment only)
 
 ```
 <!-- TTS_RESPONSE weight="sound:done" -->
 ```
 
-### Silent (no output at all)
+### Silent (rare — deep in a tool loop, nothing to say yet)
 
 ```
 <!-- TTS_RESPONSE weight="silent" -->
 ```
 
-## Weights
+## Weight Selection — Speech First
 
-| Weight | When to use | Output |
-|--------|------------|--------|
-| `speech` | The response has something worth saying aloud | TTS speaks the content |
-| `sound:done` | A step completed, nothing meaningful to say | Short completion chime |
-| `sound:attention` | Something needs user awareness soon | Distinct attention ping |
-| `sound:working` | Mid-iteration pulse, acknowledging progress | Soft tick |
-| `silent` | Nothing to communicate audibly | No output |
+**Speech is the default.** Use it unless one of the specific exceptions below applies.
 
-## Choosing a Weight
+### Use `speech` for (this covers MOST responses):
 
-Use this table. Find the situation that matches, use that weight.
+- Answering any user question or greeting
+- Reporting what you found, what you did, or what happened
+- Completing a task or step with results
+- Errors, blockers, or unexpected failures
+- Asking the user a question
+- Dispatching a sub-agent or starting a search
+- Presenting a plan or options
+- Any response where you are done with tool calls for now
 
-| Situation | Weight | Speech example |
-|-----------|--------|----------------|
-| Reading files, grepping, globbing | `silent` | -- |
-| Mid-loop between tool calls, no conclusion yet | `silent` | -- |
-| File written or edited | `sound:done` | -- |
-| Task step completed, nothing to report | `sound:done` | -- |
-| Search completed, found what was needed | `sound:done` | -- |
-| Web search or web fetch initiated | `speech` | "Searching for the latest docs on that." |
-| Sub-agent dispatched | `speech` | "Dispatching an agent to review the tests." |
-| Task completed with results to report | `speech` | "Done. Found three issues, details in the text." |
-| Error, blocker, or unexpected failure | `speech` | "Hit a permission error on that container." |
-| Asking the user a question | `speech` | The question itself |
-| Answering a user question | `speech` | The answer |
-| Greeting or casual exchange | `speech` | Natural response |
-| Background task finished | `sound:done` | -- |
-| Plan presented for approval | `speech` | "Plan's ready for your review." |
+### Use `sound:done` ONLY for:
 
-If your situation isn't listed, pick the closest match. When uncertain between two weights, pick the lower one.
+- A file edit that is one of several in a batch (not the last one)
+- An intermediate step where you will speak on the next response
+
+### Use `silent` ONLY for:
+
+- You are mid-loop reading files and have more reads queued
+- You just received a tool result and are immediately making another tool call
+
+**When uncertain, use speech.** The bias is always toward speaking, never toward silence.
 
 ## Verbosity Modes
 
@@ -121,33 +115,24 @@ These apply only when `weight="speech"`:
 
 User asks to investigate a bug.
 
-1. Read 4 source files -> `silent` (x4, mid-loop exploration)
+1. Read 4 source files -> `silent` (mid-loop, more reads to do)
 2. Find the root cause, explain it -> `speech`: "Found it. There's a race condition in the session handler."
 
 ### Workflow: Refactor
 
 User asks to refactor a function.
 
-1. Read the file -> `silent`
-2. Edit the function -> `sound:done`
-3. Run tests -> `silent` (waiting for results)
-4. Tests pass, report back -> `speech`: "Refactored and tests pass."
-
-### Workflow: Research with sub-agent
-
-User asks to search for something broad.
-
-1. Dispatch explore agent -> `speech`: "Dispatching an agent to search the codebase."
-2. Agent returns, summarize findings -> `speech`: "Found it in three files, details below."
+1. Read the file -> `silent` (about to edit)
+2. Edit the function -> `speech`: "Refactored the function."
+3. Run tests, they pass -> `speech`: "Tests pass."
 
 ### Workflow: Multi-file edit
 
 User asks to rename a variable across files.
 
-1. Edit file A -> `sound:done`
-2. Edit file B -> `sound:done`
-3. Edit file C -> `sound:done`
-4. All done, confirm -> `speech`: "Renamed across all three files."
+1. Edit file A -> `sound:done` (batch, not last)
+2. Edit file B -> `sound:done` (batch, not last)
+3. Edit file C, all done -> `speech`: "Renamed across all three files."
 
 ### Format reference
 
