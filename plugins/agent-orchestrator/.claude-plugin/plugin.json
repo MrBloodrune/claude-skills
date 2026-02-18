@@ -1,9 +1,10 @@
 {
   "name": "agent-orchestrator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Three-tier Director/Manager/Worker orchestration for multi-session agent coordination with composable domain skills",
   "author": { "name": "MrBloodrune" },
   "repository": "https://github.com/MrBloodrune/claude-skills",
   "license": "Apache-2.0",
-  "keywords": ["orchestration", "agents", "tmux", "director", "manager", "worker", "multi-session"]
+  "keywords": ["orchestration", "agents", "tmux", "director", "manager", "worker", "multi-session"],
+  "hooks": "./hooks/hooks.json"
 }
